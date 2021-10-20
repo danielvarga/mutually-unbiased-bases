@@ -21,18 +21,17 @@ np.set_printoptions(threshold=sys.maxsize)
 aa = np.angle(a[1:, 1:, :].flatten())
 print((aa[:, None] - aa[None, :]) / np.pi * 180)
 exit()
-
+'''
 
 for i in range(1, m):
     print(i, "=>")
-    print(np.angle(a[i] * 6 ** 0.5))
+    print(np.angle(a[i] * 6 ** 0.5) / np.pi * 180)
     angles = np.angle(a[i, 4, :])
     print(angles.shape)
     # print(np.pi / (angles[:, None] - angles[None, :]))
     print((angles[:, None] - angles[None, :]) / np.pi * 180)
 
 exit()
-'''
 
 import matplotlib.pyplot as plt
 
