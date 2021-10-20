@@ -23,6 +23,16 @@ print((aa[:, None] - aa[None, :]) / np.pi * 180)
 exit()
 '''
 
+
+for i in range(1, 4):
+    b = a[i]
+    for j in range(6):
+        print(f"B_{i} => row {j}")
+        angles = np.angle(b[j, :])
+        print((angles[:, None] - angles[None, :]) / np.pi * 180)
+
+exit()
+
 for i in range(1, m):
     print(i, "=>")
     print(np.angle(a[i] * 6 ** 0.5) / np.pi * 180)

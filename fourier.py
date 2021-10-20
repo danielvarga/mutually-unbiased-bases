@@ -45,7 +45,24 @@ perm2 = np.eye(6)[np.random.permutation(6), :]
 phase1 = np.exp(TIP * np.random.uniform(size=6))
 phase2 = np.exp(TIP * np.random.uniform(size=6))
 
-m = fg(0.2, 0.33, True, perm1, phase1, perm2, phase2)
+m = fg(0.22342134, 0.33234243, True, perm1, phase1, perm2, phase2)
+# m = fg(0.22342134, 0.33234243, False, np.eye(6), np.ones(6), np.eye(6), np.ones(6)) # un-generalized, same as f(a, b)
+
+for j in range(6):
+    m[:, j] /= m[0, j] / np.abs(m[0, j]) # rotating the columns by the negative phase of the first element
+
+print(np.angle(m) * 180 / np.pi)
+
+for i1 in range(6):
+    for i2 in range(6):
+        print("=>", i1, i2)
+        angles1 = np.angle(m[i1, :])
+        angles2 = np.angle(m[i2, :])
+        print((angles1[:, None] - angles2[None, :]) / np.pi * 180)
+
+
+exit()
+
 prod = np.conjugate(m.T) @ m
 assert np.allclose(np.abs(prod - np.eye(6)), 0)
 
