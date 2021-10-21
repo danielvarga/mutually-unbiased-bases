@@ -24,6 +24,62 @@ exit()
 '''
 
 
+
+import matplotlib.pyplot as plt
+
+# (B_i^dag B_j)_kl =.
+def prod_elem(i, j, k, l):
+    aprod = np.conjugate(a[i].T) @ a[j]
+    return aprod[k, l]
+
+cols = []
+shapes = []
+ps = []
+for i in range(1, 4):
+    for j in range(i + 1, 4):
+        for k in range(6):
+            for l in range(6):
+                p = prod_elem(i, j, k, l)
+                ps.append([p.real, p.imag])
+                cols.append(i*4 + j)
+                # cols.append(k*6 + l)
+
+                rounded = (np.abs(p) * 1000).astype(int)
+                assert rounded in (355, 385, 425)
+                mp = {355: 'x', 385: '*', 425: 'o'}
+                shapes.append(mp[rounded])
+
+
+# https://stackoverflow.com/questions/52303660/iterating-markers-in-plots/52303895#52303895
+def mscatter(x,y,ax=None, m=None, **kw):
+    import matplotlib.markers as mmarkers
+    if not ax: ax=plt.gca()
+    sc = ax.scatter(x,y,**kw)
+    if (m is not None) and (len(m)==len(x)):
+        paths = []
+        for marker in m:
+            if isinstance(marker, mmarkers.MarkerStyle):
+                marker_obj = marker
+            else:
+                marker_obj = mmarkers.MarkerStyle(marker)
+            path = marker_obj.get_path().transformed(
+                        marker_obj.get_transform())
+            paths.append(path)
+        sc.set_paths(paths)
+    return sc
+
+
+ps = np.array(ps)
+# ps += np.random.normal(scale=0.1, size=ps.shape) # jitter
+mscatter(ps[:, 0], ps[:, 1], c=cols, m=shapes)
+plt.show()
+
+
+
+
+
+
+
 for i in range(1, 4):
     b = a[i]
     for j in range(6):

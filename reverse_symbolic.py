@@ -107,7 +107,17 @@ def graph_to_symbol(g):
     return mapped
 '''
 
+
 # (B_i^dag B_j)_kl = 
-def rule(i, j, k, l):
-    aprod = np.abs(np.conjugate(a[i].T) @ a[j]) / 6
-    
+def prod_elem(i, j, k, l):
+    aprod = np.conjugate(a[i].T) @ a[j]
+    return aprod[k, l]
+
+
+for i in range(1, 4):
+    for j in range(i + 1, 4):
+        for k in range(6):
+            for l in range(6):
+                p = prod_elem(i, j, k, l)
+                rounded = (np.abs(p / 6) * 1000).astype(int)
+                assert rounded in (355, 385, 425)
