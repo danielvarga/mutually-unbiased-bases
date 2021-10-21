@@ -218,27 +218,56 @@ def extract(b):
 
 def extract_angles(b):
     x, y, z = extract(b)
-    return np.angle(x) * 360 / TP, np.angle(y) * 360 / TP, np.angle(z) * 360 / TP
+    return np.angle(x), np.angle(y), np.angle(z)
 
+
+unphased = a.copy()
+unphased[:, :, :3] /= unphased[:, :, 0:1]
+unphased[:, :, 3:] /= unphased[:, :, 3:4]
+
+
+ayes = []
+bs = []
+cs = []
+graphs = []
 
 for bi in range(1, 4):
-    print(bi, extract_angles(a[bi]))
+    print(f"B_{bi}")
+    aye, b, c = extract_angles(a[bi])
+    print("a:", aye, "b:", b, "c:", z)
+    ayes.append(aye)
+    bs.append(b)
+    cs.append(c)
+    print("graph")
+    angles = np.angle(unphased[bi])
+    assert np.allclose(np.sin(angles * 3 / 2), 0, atol=1e-4)
+    graph = np.round(angles / TP * 3).astype(int)
+    assert np.all(graph[[0, 5], :] == 0)
+    assert np.all(graph[:, [0, 3]] == 0)
+    graphs.append(graph)
+
+ayes = np.array(ayes) ; bs = np.array(bs) ; cs = np.array(cs) ; graphs = np.array(graphs)
+
+print()
+print("OR TO SUMMARIZE IT:")
+
+np.set_printoptions(floatmode='unique')
+
+print("ayes =", repr(ayes))
+print("bs =", repr(bs))
+print("cs =", repr(cs))
+print("graphs =", repr(graphs))
+
+np.set_printoptions(precision=5, suppress=True)
 
 
-'''
-print(">>>>")
-for bi in range(1, 4):
-    a[bi, :, :3] /= a[bi, :, 0:1]
-    a[bi, :, 3:] /= a[bi, :, 3:4]
-    print(np.angle(a[bi]) * 360 / TP)
-'''
 
 # this does not have any apparent structure:
 '''
 import matplotlib.pyplot as plt
 for bi in range(1, 4):
     x, y, z  = extract_angles(a[bi])
-    plt.scatter(x, y)
+    plt.scatter(x * 360 / TP, y * 360 / TP)
 
 plt.show()
 '''

@@ -20,3 +20,6 @@ python reverse.py mub_120_normal.npy
 python reverse.py mub_300_normal.npy
 # -> does not work, verify_constraints(x, y) fails
 
+python reverse.py mub_120_normal.npy
+# -> generated code output copied to reverse_symbolic.py
+
