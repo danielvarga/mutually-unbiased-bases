@@ -32,10 +32,61 @@ print("x", np.angle(x)  / TP * 360)
 print("y", np.angle(y)  / TP * 360)
 
 
+def verify_constraints(x, y):
+    a = np.angle(x)
+    b = np.angle(y)
+
+    c30_angle = np.mod(a[3] - a[0] - b[3] + b[0], TP)
+    c12_angle = np.mod(a[1] - a[2] - b[1] + b[2], TP)
+    c01_angle = np.mod(a[0] - a[1] - b[0] + b[1], TP)
+    c23_angle = np.mod(a[2] - a[3] - b[2] + b[3], TP)
+    c02_angle = np.mod(a[0] - a[2] - b[0] + b[2], TP)
+    c13_angle = np.mod(a[1] - a[3] - b[1] + b[3], TP)
+
+    def piclose(x):
+        return np.isclose(x, np.pi, atol=1e-4)
+
+    r12_30 = piclose(c30_angle) and piclose(c12_angle)
+    r01_23 = piclose(c01_angle) and piclose(c23_angle)
+    r02_13 = piclose(c02_angle) and piclose(c13_angle)
+    assert r12_30 or r01_23 or r02_13
+    print(c30_angle, c12_angle, c01_angle, c23_angle, c02_angle, c13_angle)
+
+    if not r12_30:
+        print("it has the fourier structure, but the rows are permuted differently")
+
+    print("verified constraints")
+
+    # this code only works with 12-30 separated rows,
+    # which is true for mub_120_normal.npy but not true for optimum.npy:
+    '''
+    c1 = np.conj(x[0]) * x[3] + np.conj(y[0]) * y[3]
+    c2 = np.conj(x[1]) * x[2] + np.conj(y[1]) * y[2]
+    assert np.isclose(c1, 0)
+    assert np.isclose(c2, 0)
+
+    c1_angle = np.mod(a[3] - a[0] - b[3] + b[0] + np.pi, TP)
+    c2_angle = np.mod(a[2] - a[1] - b[2] + b[1] + np.pi, TP)
+    assert np.isclose(c1_angle, 0) or np.isclose(c1_angle, TP)
+    assert np.isclose(c2_angle, 0) or np.isclose(c2_angle, TP)
+    c1_angle = np.mod(a[3] - a[0] - b[3] + b[0], TP)
+    c2_angle = np.mod(a[2] - a[1] - b[2] + b[1], TP)
+    assert np.isclose(c1_angle, np.pi)
+    assert np.isclose(c2_angle, np.pi)
+    print("verified constraints")
+    '''
+
+verify_constraints(x, y)
+
+
 def create_random():
-    x = np.exp(TIP * np.random.uniform(size=4))
-    y = np.exp(TIP * np.random.uniform(size=4))
-    z = np.exp(TIP * np.random.uniform())
+    a = np.zeros(4, dtype=np.complex128)
+    b = np.random.uniform(size=4)
+    b[3] = b[0] + 1/2
+    b[2] = b[1] + 1/2
+    x = np.exp(TIP * a)
+    y = np.exp(TIP * b)
+    z = 1 + 0j
 
     # our 9 phases are constrained by two equations, namely
     # [x[0], y[0]]^dag [x[3], y[3]] == 0
@@ -64,7 +115,7 @@ def create(x, y, z):
 
 r = create_random()
 
-r = create(np.squeeze(x), np.squeeze(y), z)
+# r = create(x, y, z)
 
 np.set_printoptions(precision=5, suppress=True)
 
@@ -75,5 +126,119 @@ assert np.allclose(np.abs(prod - 6 * np.eye(6)), 0, atol=1e-5)
 
 
 
+def find_zrow(b):
+    assert np.allclose(b[0, :], 1) # columns unphased. rows not.
+
+    # which is the z, z, z, -z, -z, -z row?
+    col = b[:, 0]
+    zrow = None
+    for i in range(1, 6):
+        unphased = b[i, :] / col[i]
+        angles = np.angle(unphased)
+        rotated = np.mod(np.angle(unphased) + np.pi / 2, np.pi)
+        if np.allclose(rotated, np.pi / 2, atol=1e-4):
+            zrow = i
+            break
+    assert zrow is not None
+    return zrow
 
 
+def find_zrow_for_mub(a):
+    zrows = set()
+    for i in range(1, 4):
+        zrows.add(find_zrow(a[i]))
+
+    assert len(zrows) == 1, "the bases should be in sync"
+    zrow = zrows.pop()
+    return zrow
+
+
+def find_triangles(b):
+    row = b[1]
+    x = row[0]
+    mates = set()
+    for i, y in enumerate(row):
+        direction = (np.angle(x) - np.angle(y)) * 3 # this is supposed to be 0 mod 2pi if they belong together.
+        if np.isclose(np.mod(direction + np.pi, TP), np.pi, atol=1e-4): # easier to check at the middle, no wrapover.
+            mates.add(i)
+    assert len(mates) == 3
+    return mates
+
+
+def verify(a, verbose=False):
+    m, n = 4, 6
+    for i in range(m):
+        closeness = np.abs(6 * np.eye(6) - np.conjugate(a[i].T) @ a[i])
+        assert np.allclose(closeness, 0, atol=1e-6)
+
+    for i in range(m):
+        for j in range(i + 1, m):
+            aprod = np.abs(np.conjugate(a[i].T) @ a[j]) / 6
+            distinct = tuple(np.unique((aprod * 1000).astype(int)))
+            assert distinct == (355, 385, 425) or distinct == (408, )
+            if verbose:
+                print(i, j)
+                print(aprod)
+
+verify(a)
+print("original verified to be close-MUB")
+
+
+zrow = find_zrow_for_mub(a)
+
+
+# permute rows in sync so that the +1, -1 row is the last:
+a = a[:, list(range(zrow)) + list(range(zrow + 1, 6)) + [zrow], :]
+
+zrow = find_zrow_for_mub(a)
+assert zrow == 5
+
+verify(a)
+print("zrow to last did not ruin it")
+
+
+for bi in range(1, 4):
+    mates = find_triangles(a[bi])
+    nonmates = set(range(6)) - mates
+    perm = list(mates) + list(nonmates)
+    print(perm)
+    a[bi] = a[bi] @ np.eye(6)[:, perm]
+    assert find_triangles(a[bi]) == set([0, 1, 2])
+
+verify(a)
+print("rearranging each basis into 3-3 columns did not ruin it")
+
+
+def extract(b):
+    x = b[1:5, 0]
+    y = b[1:5, 3]
+    z = b[5, 0]
+    return x, y, z
+
+
+def extract_angles(b):
+    x, y, z = extract(b)
+    return np.angle(x) * 360 / TP, np.angle(y) * 360 / TP, np.angle(z) * 360 / TP
+
+
+for bi in range(1, 4):
+    print(bi, extract_angles(a[bi]))
+
+
+'''
+print(">>>>")
+for bi in range(1, 4):
+    a[bi, :, :3] /= a[bi, :, 0:1]
+    a[bi, :, 3:] /= a[bi, :, 3:4]
+    print(np.angle(a[bi]) * 360 / TP)
+'''
+
+# this does not have any apparent structure:
+'''
+import matplotlib.pyplot as plt
+for bi in range(1, 4):
+    x, y, z  = extract_angles(a[bi])
+    plt.scatter(x, y)
+
+plt.show()
+'''
