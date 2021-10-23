@@ -23,3 +23,12 @@ python reverse.py mub_300_normal.npy
 python reverse.py mub_120_normal.npy
 # -> generated code output copied to reverse_symbolic.py
 
+
+# product_angles() with print commented in:
+python vis.py mub_120_normal.npy | tr ' ' '\t' > mub_120_polars.txt
+# tells us that the product elements have nothing much in common, except for two facts:
+# - what we already know, that magnitudes only have 3 possible values,
+# - that each exact product element appears 3 times, all three times in the same matrix product:
+cat mub_120_polars.txt | cut -f1,2,5,6 | sort | uniq -c | wc -l
+36
+# 36 x 3 = 108

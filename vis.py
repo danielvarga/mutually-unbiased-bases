@@ -32,6 +32,43 @@ def prod_elem(i, j, k, l):
     aprod = np.conjugate(a[i].T) @ a[j]
     return aprod[k, l]
 
+
+# product elements in polar coords normalized such that two are equal
+# if and only if they are equal analytically. 
+def product_angles():
+    normalized = []
+    for i in range(1, 4):
+        for j in range(i + 1, 4):
+            for k in range(6):
+                for l in range(6):
+                    p = prod_elem(i, j, k, l)
+                    rounded_abs = (np.abs(p) * 1000).astype(int)
+                    assert rounded_abs in (355, 385, 425)
+                    rounded_abs /= 1000
+                    angle = np.angle(p)
+                    # 10^8 needed to avoid spurious coincidences because of rounding,
+                    # but to still avoid spurious differences because of precision errors.
+                    rounded_angle = int(angle * 10 ** 8)
+                    rounded_angle /= 10 ** 8
+                    normalized.append((i, j, k, l, rounded_abs, rounded_angle))
+                    print(i, j, k, l, rounded_abs, rounded_angle)
+    normalized = np.array(normalized)
+    return normalized
+
+
+def visualize_product_angles():
+    angles = product_angles()[:, 5]
+    angles = np.unique(angles)
+    np.set_printoptions(threshold=sys.maxsize)
+    pairs = angles[None, :] - angles[:, None]
+    print(pairs / np.pi * 180)
+    plt.hist(pairs.flatten() / np.pi * 180, bins=360)
+    plt.show()
+
+
+visualize_product_angles() ; exit()
+
+
 cols = []
 shapes = []
 ps = []
