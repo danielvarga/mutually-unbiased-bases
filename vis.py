@@ -66,7 +66,7 @@ def visualize_product_angles():
     plt.show()
 
 
-visualize_product_angles() ; exit()
+# visualize_product_angles() ; exit()
 
 
 cols = []
@@ -106,12 +106,13 @@ def mscatter(x,y,ax=None, m=None, **kw):
     return sc
 
 
+
+'''
 ps = np.array(ps)
 # ps += np.random.normal(scale=0.1, size=ps.shape) # jitter
 mscatter(ps[:, 0], ps[:, 1], c=cols, m=shapes)
 plt.show()
-
-
+'''
 
 
 
@@ -124,7 +125,7 @@ for i in range(1, 4):
         angles = np.angle(b[j, :])
         print((angles[:, None] - angles[None, :]) / np.pi * 180)
 
-exit()
+# exit()
 
 for i in range(1, m):
     print(i, "=>")
@@ -134,7 +135,8 @@ for i in range(1, m):
     # print(np.pi / (angles[:, None] - angles[None, :]))
     print((angles[:, None] - angles[None, :]) / np.pi * 180)
 
-exit()
+# exit()
+
 
 import matplotlib.pyplot as plt
 

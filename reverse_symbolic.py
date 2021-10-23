@@ -51,11 +51,11 @@ zs = np.exp(1j * cs)
 
 TP = 2 * np.pi
 TIP = 2j * np.pi
-W = np.exp(TIP / 3)
+Wnumeric = np.exp(TIP / 3)
 
 
 def rebuild(xs, ys, zs, graphs):
-    a = W ** graphs
+    a = Wnumeric ** graphs
     a[:, 1:5, :3] *= xs[..., None]
     a[:, 1:5, 3:] *= ys[..., None]
     a[:, 5, :3] *= zs[..., None]
@@ -64,6 +64,96 @@ def rebuild(xs, ys, zs, graphs):
     b0 = b0[[0, 1, 2, 4, 5, 3], :] # that's the zrow permutation
     a = np.concatenate([b0[None, ...], a])
     return a
+
+
+
+import sympy
+from sympy import symbols, MatrixSymbol, Matrix, eye, ones, conjugate, sqrt
+from sympy import expand, factor, simplify, collect, solveset, solve, Eq
+from sympy.physics.quantum.dagger import Dagger
+from sympy.matrices.dense import matrix_multiply_elementwise
+
+def varset(v, m):
+    return f"{v}0:3(0:{m})"
+
+Xvars = symbols(varset("X", 4))
+Yvars = symbols(varset("Y", 4))
+Zvars = symbols(varset("Z", 1))
+X = Matrix(3, 4, Xvars)
+Y = Matrix(3, 4, Yvars)
+Z = Matrix(3, 1, Zvars)
+Wsym = symbols('W')
+
+
+def rebuild_symbolic(graphs, i):
+    print(X[i, :])
+    graph = graphs[i]
+    m = ones(6, 6)
+    for k in range(6):
+        for l in range(6):
+            if graph[k, l] == 1:
+                m[k, l] *= Wsym
+            elif graph[k, l] == -1:
+                m[k, l] *= Wsym * Wsym
+    for k in range(1, 5):
+        for l in range(3):
+            m[k, l] *= X[i, k - 1] # note the potential one off error!
+            m[k, l + 3] *= Y[i, k - 1]
+    for l in range(6):
+        m[5, l] *= Z[i]
+    for l in range(3, 6):
+        m[5, l] *= -1
+    return m
+
+
+def simplify_roots(expr):
+    e = expr.subs(conjugate(Wsym), Wsym ** 2)
+    e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2).subs(Wsym ** 6, 1)
+    return e
+
+def apply_elemwise(fn, matrix):
+    m = matrix.as_mutable()
+    for k in range(m.shape[0]):
+        for l in range(m.shape[1]):
+            m[k, l] = fn(m[k, l])
+    return m
+
+
+m0 = rebuild_symbolic(graphs, 0)
+m1 = rebuild_symbolic(graphs, 1)
+m2 = rebuild_symbolic(graphs, 2)
+print("symbolic formula for B_1 :")
+print(m0)
+prod01 = Dagger(m0) * m1
+prod01 = simplify_roots(prod01)
+amplitude01 = expand(matrix_multiply_elementwise(Dagger(prod01), prod01))
+amplitude01 = simplify_roots(amplitude01)
+print("---")
+print("symbolic formula for abs^2(B_1^dag B_2) :")
+print(amplitude01)
+
+prod00 = Dagger(m0) * m0
+prod00 = simplify_roots(prod00)
+print(prod00)
+p = prod00
+for var in Xvars + Yvars + Zvars:
+    p = p.subs(conjugate(var) * var, 1)
+# p = expand(p.subs(Wsym, -1/2 + sqrt(3)/2j))
+print("---")
+print("symbolic formula for B_1^dag B_1 :")
+p = apply_elemwise(lambda expr: factor(expr).subs(1 + Wsym + Wsym ** 2, 0), p)
+p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
+p = p.subs(Y[0,0]*conjugate(X[0,0]) + Y[0,3]*conjugate(X[0,3]), 0)
+p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
+p = p.subs(Y[0,1]*conjugate(X[0,1]) + Y[0,2]*conjugate(X[0,2]), 0)
+p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
+# these two subs are redundant, but sympy does not spot that:
+p = p.subs(X[0,0]*conjugate(Y[0,0]) + X[0,3]*conjugate(Y[0,3]), 0)
+p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
+p = p.subs(X[0,1]*conjugate(Y[0,1]) + X[0,2]*conjugate(Y[0,2]), 0)
+print(p)
+
+exit()
 
 
 np.set_printoptions(precision=5, suppress=True)
