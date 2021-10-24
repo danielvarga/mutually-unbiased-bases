@@ -81,6 +81,15 @@ Yvars = symbols(varset("Y", 4))
 Zvars = symbols(varset("Z", 1))
 X = Matrix(3, 4, Xvars)
 Y = Matrix(3, 4, Yvars)
+
+# okay, but Y_i2 and Y_i3 can be calculated from the rest:
+# Y[0,0]*conjugate(X[0,0]) + Y[0,3]*conjugate(X[0,3]) == 0
+# -> Y[0,3] = -Y[0,0]*conjugate(X[0,0])*X[0,3]
+# ...so we enforce this:
+for i in range(3):
+    Y[i, 3] = - Y[i, 0] * conjugate(X[i, 0]) * X[i, 3]
+    Y[i, 2] = - Y[i, 1] * conjugate(X[i, 1]) * X[i, 2]
+
 Z = Matrix(3, 1, Zvars)
 Wsym = symbols('W')
 
@@ -119,6 +128,12 @@ def apply_elemwise(fn, matrix):
     return m
 
 
+def enforce_norm_one(p):
+    for var in Xvars + Yvars + Zvars:
+        p = p.subs(conjugate(var) * var, 1)
+    return p
+
+
 m0 = rebuild_symbolic(graphs, 0)
 m1 = rebuild_symbolic(graphs, 1)
 m2 = rebuild_symbolic(graphs, 2)
@@ -128,20 +143,29 @@ prod01 = Dagger(m0) * m1
 prod01 = simplify_roots(prod01)
 amplitude01 = expand(matrix_multiply_elementwise(Dagger(prod01), prod01))
 amplitude01 = simplify_roots(amplitude01)
+amplitude01 = enforce_norm_one(amplitude01)
 print("---")
 print("symbolic formula for abs^2(B_1^dag B_2) :")
 print(amplitude01)
 
 prod00 = Dagger(m0) * m0
 prod00 = simplify_roots(prod00)
-print(prod00)
-p = prod00
-for var in Xvars + Yvars + Zvars:
-    p = p.subs(conjugate(var) * var, 1)
+prod00 = enforce_norm_one(prod00)
+
+# we don't need this, we rely on the simplify_roots (conjugate(Wsym) == Wsym ** 2, Wsym ** 3 == 1)
+# and the 1 + Wsym + Wsym ** 2 == 0 substitutions:
+#
 # p = expand(p.subs(Wsym, -1/2 + sqrt(3)/2j))
+
+prod00 = apply_elemwise(lambda expr: factor(expr).subs(1 + Wsym + Wsym ** 2, 0), prod00)
+
 print("---")
 print("symbolic formula for B_1^dag B_1 :")
-p = apply_elemwise(lambda expr: factor(expr).subs(1 + Wsym + Wsym ** 2, 0), p)
+
+# this is not needed anymore, because the rhombus constraints are built into the matrices.
+# i keep the old code, though, because this change increases the degree of the polynomials.
+'''
+p = prod00
 p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
 p = p.subs(Y[0,0]*conjugate(X[0,0]) + Y[0,3]*conjugate(X[0,3]), 0)
 p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
@@ -151,9 +175,9 @@ p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
 p = p.subs(X[0,0]*conjugate(Y[0,0]) + X[0,3]*conjugate(Y[0,3]), 0)
 p = apply_elemwise(lambda expr: collect(expr, Wsym), p)
 p = p.subs(X[0,1]*conjugate(Y[0,1]) + X[0,2]*conjugate(Y[0,2]), 0)
-print(p)
+'''
 
-exit()
+print(prod00)
 
 
 np.set_printoptions(precision=5, suppress=True)
