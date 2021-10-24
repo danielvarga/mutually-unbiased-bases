@@ -21,7 +21,9 @@ python reverse.py mub_300_normal.npy
 # -> does not work, verify_constraints(x, y) fails
 
 python reverse.py mub_120_normal.npy
-# -> generated code output copied to reverse_symbolic.py
+python reverse.py mub_120_normal.npy mub_120_verynormal.npy
+# -> generated code output copied to reverse_symbolic.py,
+#    and at the same time put it into normal form mub_120_verynormal.npy
 
 
 # product_angles() with print commented in:

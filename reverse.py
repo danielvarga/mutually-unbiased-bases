@@ -10,7 +10,7 @@ W = np.exp(TIP / 3)
 
 
 # mub_120_normal.npy
-filename, = sys.argv[1:]
+filename = sys.argv[1]
 a = np.load(filename)
 a *= 6 ** 0.5
 b = a[1]
@@ -260,6 +260,13 @@ print("graphs =", repr(graphs))
 
 np.set_printoptions(precision=5, suppress=True)
 
+
+# undoing the scaling that we started with:
+a /= 6 ** 0.5
+
+if len(sys.argv) > 2:
+    out_filename = sys.argv[2]
+    np.save(out_filename, a)
 
 
 # this does not have any apparent structure:
