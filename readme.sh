@@ -13,7 +13,7 @@ cat optima_filtered | cut -f1 -d' ' | cut -f2 -d'/' | cut -f1 -d'.' | sort -n | 
 python normal_form.py quantum/mub_120.npy | tr '234' '.bc'
 python normal_form.py quantum/mub_120.npy mub_120_normal.npy
 
-python reverse.py optimum.py
+python reverse.py optimum.npy
 # -> works
 python reverse.py mub_120_normal.npy
 # -> works, but it has a row structure different from what i assumed

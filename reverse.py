@@ -1,4 +1,4 @@
-# the goal is to re-create mub_120_normal.npy B_1 as parametrized matrix
+# the goal is to re-create mub_120_normal.npy as parametrized matrix
 
 import sys
 import numpy as np
