@@ -113,6 +113,20 @@ def create(x, y, z):
     result = np.concatenate([o[None, :], q, p[None, :]])
     return result
 
+
+# x and y are phases. this is exactly formula (3) in https://arxiv.org/pdf/0902.0882.pdf
+# not sure about numerical precision when doing (sixth ** 5) instead of -W.
+def canonical_fourier(x, y):
+    ws = np.ones((6, 6), dtype=np.complex128)
+    ws[1:6:3, 1:6:2] *= x
+    ws[2:6:3, 1:6:2] *= y
+    sixth = - np.conjugate(W)
+    for i in range(1, 6):
+        for j in range(1, 6):
+            ws[i, j] *= sixth ** ((i * j) % 6)
+    return ws
+
+
 r = create_random()
 
 # r = create(x, y, z)
@@ -287,9 +301,53 @@ def rebuild_single(x, y, z, graph):
     return b
 
 
+def haagerup(H):
+    hu = []
+    for i in range(6):
+        for j in range(6):
+            for k in range(6):
+                for l in range(6):
+                    z = H[i,j]*H[k,l]*np.conjugate(H[i,l]*H[k,j])
+                    hu.append(np.angle(z))
+    return np.array(sorted(hu))
+
+
+def haagerup_distance(basis1, basis2):
+    hu1 = haagerup(basis1)
+    hu2 = haagerup(basis2)
+    epsilon = 1e-7
+    hu1f = hu1[np.abs(hu1) < np.pi - epsilon]
+    hu2f = hu2[np.abs(hu2) < np.pi - epsilon]
+    # a bit fragile, yes, but so far this assertion never failed, fingers crossed.
+    assert len(hu1f) == len(hu2f)
+    # this assumes that the angles are sorted,
+    # and completely misbehaves when one of the angles goes from -pi+epsilon
+    # to pi-epsilon, or vice versa.
+    # that's why we threw away the ones closest in to pi in absolute value.
+    return np.linalg.norm(hu1f - hu2f, ord=1)
+
+
 def which_fourier(x, y, z, graph):
     return np.angle(x / y) * 180 / np.pi
-    # return p1, p2
+
+
+def test_haagerup():
+    x, y = np.exp(23j), np.exp(11j)
+    v, u = np.exp(4j), np.exp(31j)
+    epsilon = 1e-8
+    b1 = canonical_fourier(x, y)
+    b2 = canonical_fourier(v, u)
+    b1b = canonical_fourier(y, x)
+    b1c = canonical_fourier(-x, y)
+    b1d = canonical_fourier(x, -y)
+    assert haagerup_distance(b1, b2) > 10
+    assert haagerup_distance(b1, b1b) < epsilon
+    assert haagerup_distance(b1, b1c) < epsilon
+    assert haagerup_distance(b1, b1d) < epsilon
+    print("haagerup passed all verifications")
+
+
+# test_haagerup()
 
 
 print("Okay, but which Fourier are they?")
@@ -299,15 +357,17 @@ for i in range(3):
     basis = rebuild_single(x, y, z, graph)
     prod = np.conjugate(basis.T) @ basis
     assert(np.allclose(prod, 6 * np.eye(6)))
-    print(i, which_fourier(x, y, z, graph))
+    hu = haagerup(basis)
 
-
-# this does not have any apparent structure:
-'''
-import matplotlib.pyplot as plt
-for bi in range(1, 4):
-    x, y, z  = extract_angles(a[bi])
-    plt.scatter(x * 360 / TP, y * 360 / TP)
-
-plt.show()
-'''
+    candidate_parameters = x / y
+    from itertools import combinations
+    pairs = list(combinations(candidate_parameters, 2))
+    for (p, q) in pairs:
+        if not np.isclose(p, -q):
+            break
+    candidate_basis = canonical_fourier(p, q)
+    dist = haagerup_distance(basis, candidate_basis)
+    a = np.abs(np.angle(p)) / np.pi * 180
+    b = np.abs(np.angle(q)) / np.pi * 180
+    a, b = sorted([a, b])
+    print("basis", i + 1, "fourier_params_in_degrees", a, b, "haagerup_distance", dist)
