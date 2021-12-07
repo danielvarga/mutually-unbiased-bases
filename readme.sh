@@ -34,3 +34,36 @@ python vis.py mub_120_normal.npy | tr ' ' '\t' > mub_120_polars.txt
 cat mub_120_polars.txt | cut -f1,2,5,6 | sort | uniq -c | wc -l
 36
 # 36 x 3 = 108
+
+# we normalize everything we have:
+time cat optima_filtered | cut -f1 -d' ' | sed "s/\//\/mub_/" | sed "s/cout/npy/" | while read f ; do fnormed=`echo $f | sed "s/^quantum/normalized/"` ; python normal_form.py $f $fnormed > /dev/null ; done
+# -> for some reason there are files not found, but we still collect 854 quasi-MUBs.
+
+# let's check a bunch of them, what are the parameters of their Fourier bases?
+# not too many, because most of them have a
+# different zrow or graph structure, and they just
+# bury the console with assert failed messages.
+ls normalized/* | head | while read f ; do echo $f ; python reverse.py $f | awk 'f;/Okay/{f=1}' ; done
+
+# Here's three reverse engineered:
+# we can only tell values up to 180 degrees rotations.
+normalized/mub_100.npy
+a       b
+-60+b   60-a+b
+-60-a-b 60-a
+a = -55.1187968716524
+b = -0.0005514574849350036
+
+normalized/mub_120.npy
+120+c    d
+60+c     c-d
+120+d-c  120+d
+c = 0.00750938849902
+d = 4.885233682186406
+
+# this one is weird, it has just one free parameter:
+optimum.npy
+a   a
+0   a
+60  120+a
+a = 55.11852114360842

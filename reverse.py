@@ -269,6 +269,39 @@ if len(sys.argv) > 2:
     np.save(out_filename, a)
 
 
+
+
+xs = np.exp(1j * ayes)
+ys = np.exp(1j * bs)
+zs = np.exp(1j * cs)
+
+Wnumeric = np.exp(TIP / 3)
+
+
+def rebuild_single(x, y, z, graph):
+    b = Wnumeric ** graph
+    b[1:5, :3] *= x[:, None]
+    b[1:5, 3:] *= y[:, None]
+    b[5, :] *= z
+    b[5, 3:] *= -1
+    return b
+
+
+def which_fourier(x, y, z, graph):
+    return np.angle(x / y) * 180 / np.pi
+    # return p1, p2
+
+
+print("Okay, but which Fourier are they?")
+for i in range(3):
+    # print(which_fourier(ayes[i], bs[i], cs[i], graphs[i]))
+    x = xs[i] ; y = ys[i] ; z = zs[i] ; graph = graphs[i]
+    basis = rebuild_single(x, y, z, graph)
+    prod = np.conjugate(basis.T) @ basis
+    assert(np.allclose(prod, 6 * np.eye(6)))
+    print(i, which_fourier(x, y, z, graph))
+
+
 # this does not have any apparent structure:
 '''
 import matplotlib.pyplot as plt
