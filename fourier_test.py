@@ -82,14 +82,36 @@ def tests():
     b2 = canonical_fourier(x * W, y / W)
     b1 = b1[:, [0, 3, 2, 5, 4, 1]]
     assert np.allclose(b1, b2)
-    print(t(b1, b2))
+
+    V = np.sqrt(W)
+
+    # these can't be transformed
+    b1 = canonical_fourier(x, y)
+    b2 = canonical_fourier(x * V, y * V)
+    result = t(b1, b2)
+    assert result[-1] > 0.01
+    print("canonical_fourier(x * V, y * V)", "cannot be mapped")
+
+    # these can't be transformed
+    b1 = canonical_fourier(x, y)
+    b2 = canonical_fourier(x * V, y)
+    result = t(b1, b2)
+    assert result[-1] > 0.01
+    print("canonical_fourier(x * V, y)", "cannot be mapped")
 
     # these can't be transformed
     b1 = canonical_fourier(x, y)
     b2 = canonical_fourier(x * W, y * W)
     result = t(b1, b2)
     assert result[-1] > 0.01
+    print("canonical_fourier(x * W, y * W)", "cannot be mapped")
+
+    # these can't be transformed
+    b1 = canonical_fourier(x, y)
+    b2 = canonical_fourier(x * W, y)
+    result = t(b1, b2)
+    assert result[-1] > 0.01
+    print("canonical_fourier(x * W, y)", "cannot be mapped")
 
 
 tests()
-

@@ -121,3 +121,75 @@ normalized/mub_10295.npy
 basis 1 fourier_params_in_degrees 4.8838259781184465 115.12086816254357 haagerup_distance 4.979341049725361e-13
 basis 2 fourier_params_in_degrees 115.12086816254372 120.00469414066197 haagerup_distance 5.894738907066821e-13
 basis 3 fourier_params_in_degrees 0.004694140662026676 124.88382597811832 haagerup_distance 4.123172614965698e-13
+
+
+# changed the format to put the filename in the same line, fewer ugly awk scripts needed.
+ls optimum.npy normalized/* | while read f ; do python reverse.py $f 2> /dev/null | awk 'f;/Okay/{f=1}' ; done > fourier_bases
+# ->
+filename normalized/mub_100.npy basis 1 fourier_params_in_degrees 0.0005514574849350037 55.1187968716524 haagerup_distance 4.014721294667324e-13
+filename normalized/mub_100.npy basis 2 fourier_params_in_degrees 60.000551457485095 115.11824541416748 haagerup_distance 5.567767316530352e-13
+filename normalized/mub_100.npy basis 3 fourier_params_in_degrees 115.11879687165253 175.11824541416752 haagerup_distance 3.9923615222136125e-13
+filename normalized/mub_10006.npy basis 1 fourier_params_in_degrees 64.88793828463234 119.9870819221207 haagerup_distance 4.2510396244810345e-13
+filename normalized/mub_10006.npy basis 2 fourier_params_in_degrees 59.987081922120666 115.12497979324696 haagerup_distance 4.285493401118279e-13
+filename normalized/mub_10006.npy basis 3 fourier_params_in_degrees 115.11206171536766 175.12497979324704 haagerup_distance 3.7692006633893715e-13
+
+#########
+# how are Fourier bases permuted when shuffling around x and y?
+# wrote test_fourier.py to investigate.
+
+# F(x, y) -> F(y, x)
+# left and right permutations
+# (0, 5, 4, 3, 2, 1), (0, 5, 4, 3, 2, 1)
+# b[1:, 1:] is mirrored:
+# b[1:, 1:] = b[5:0:-1, 5:0:-1]
+
+# F(x, y) -> F(-x, y)
+# left and right permutations
+# (0, 4, 2, 3, 1, 5), (0, 1, 2, 3, 4, 5)
+# just two rows are swapped, namely zero-indexed 1 and 4.
+
+# F(x, y) -> F(-x, y)
+# left and right permutations
+# (0, 1, 5, 3, 4, 2), (0, 1, 2, 3, 4, 5)
+# just two rows are swapped, namely zero-indexed 2 and 5.
+
+# if there's no bug in my code, then it's not true that
+# F(x, y) can be permuted and phase shifted (D1 P1 F(x, y) P2 D2) into F(x * W, y) or F(x * sqrt(W), y)
+
+#########
+
+# finally wrote the code that decomposes an element of a QMUB into D1 P1 F(x, y) P2 D2.
+
+# TODO it checks 6!^2 P1 P2 pairs, that's some 30secs, a 6x6-fold increase could save significant time.
+
+# TODO it often fails on assert np.allclose(b_reconstruct2, b), the tranform() function loses
+#      a lot of precision, and I haven't even verified how much.
+
+
+ls optimum.npy normalized/*.npy | while read f ; do python true_reverse.py $f ; done > canonized_mubs
+cat canonized_mubs | python vis_phases.py > foo
+
+
+na teljesen tiszta lesz mindjárt a kép azt hiszem. és egy kicsit kevésbé érdekes, mint reméltük. lényegében egy megoldást találok mindig, azt hiszem. vannak eddig fel nem fedezett F(x, y)->F(x’, y’) csoporthatások, és ezeknek köszönhetően egy qMUB minden elemének ugyanaz az (x, y) paraméterezése. sőt, a P-kben sincs semmi kaland, mindegyikre azonosak a qMUB-on belül, balról is, jobbról is. még egy dologban nincs kaland: a jobbról ható D mindig az identitás, ez trivi a normalizálás miatt.
+szóval akkor minden egyediség a balról ható D-be szorul, meg esetleg az (x, y)-ba, de az utóbbiról lélekben lemondtam, mert minden kábé úgy néz ki, hogy x=55.11? y=0.00?. (minden fokokban.)
+mi van a bal D-vel? ilyesmi:
+
+normalized/mub_10020.npy
+[  0.      -3.744  -20.5666  58.0948 146.1523  87.2813]
+[   0.  120. -120.  120. -120.    0.]
+[   0.  120. -120.  120. -120.    0.]
+normalized/mub_1003.npy
+[  0.     -70.3359 166.9516 124.7132 -25.8805 -42.8013]
+[   0.  120. -120.    0. -120.  120.]
+[   0.  120. -120.    0. -120.  120.]
+optimum.npy
+[   0.       78.9524  -77.1919  -26.8859 -116.7346   42.4404]
+[   0.  120. -120.   -0.  120. -120.]
+[   0.  120. -120.    0.  120. -120.]
+de olyan is előfordul, hogy
+normalized/mub_10005.npy
+[  0.       5.9542  49.1784 -92.8373 115.5533  34.0481]
+[0. 0. 0. 0. 0. 0.]
+[0. 0. 0. 0. 0. 0.]
+
+ezek között nem csak hogy nincsenek ismételten felbukkanó számok (a 0 kivételével), de a páronkénti különbségeik között sem. Ezzel együtt itt már csak nem bír túl sok meglepő dolog történni, nehogymán.

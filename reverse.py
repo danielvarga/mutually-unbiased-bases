@@ -312,6 +312,17 @@ def haagerup(H):
     return np.array(sorted(hu))
 
 
+def discrete_haagerup(H, bins=360):
+    hu = set()
+    for i in range(6):
+        for j in range(6):
+            for k in range(6):
+                for l in range(6):
+                    z = H[i,j] * H[k,l] * np.conjugate(H[i,l] * H[k,j])
+                    hu.add(np.around(np.angle(z) * bins / (2 * np.pi), 2))
+    return np.array(sorted(hu))
+
+
 def haagerup_distance(basis1, basis2):
     hu1 = haagerup(basis1)
     hu2 = haagerup(basis2)
@@ -347,7 +358,38 @@ def test_haagerup():
     print("haagerup passed all verifications")
 
 
+def degtophase(d):
+    return np.exp(1j * d / 180 * np.pi)
+
+
+def test_comparing_bases():
+    x1d, y1d = 64.88793828463234, 119.9870819221207 # normalized/mub_10006.npy basis 1
+    b1 = canonical_fourier(degtophase(x1d), degtophase(y1d))
+    x2d, y2d = 59.987081922120666, 115.12497979324696 # normalized/mub_10006.npy basis 2
+    b2 = canonical_fourier(degtophase(x2d), degtophase(y2d))
+    x3d, y3d = 59.997177875439576, 64.88006781268074 # normalized/mub_1003.npy basis 1
+    b3 = canonical_fourier(degtophase(x3d), degtophase(y3d))
+    print("b1-b2", haagerup_distance(b1, b2))
+    print("b1-b3", haagerup_distance(b1, b3))
+    print("b2-b3", haagerup_distance(b2, b3))
+
+
+def seriously_comparing_bases():
+    bases = []
+    for l in sys.stdin:
+        indx, xd, yd = map(float, l.strip().split())
+        indx = int(indx)
+        basis = canonical_fourier(degtophase(xd), degtophase(yd))
+        bases.append(basis)
+    for i in range(len(bases)):
+        for j in range(i, len(bases)):
+            dist = haagerup_distance(bases[i], bases[j])
+            print(i, j, dist)
+
+
 # test_haagerup()
+# test_comparing_bases() ; exit()
+# seriously_comparing_bases() ; exit()
 
 
 print("Okay, but which Fourier are they?")
@@ -357,7 +399,12 @@ for i in range(3):
     basis = rebuild_single(x, y, z, graph)
     prod = np.conjugate(basis.T) @ basis
     assert(np.allclose(prod, 6 * np.eye(6)))
-    hu = haagerup(basis)
+
+    '''
+    np.set_printoptions(precision=5, suppress=True, linewidth=100000)
+    print(filename, i+1, len(discrete_haagerup(basis, bins=360)))
+    continue
+    '''
 
     candidate_parameters = x / y
     from itertools import combinations
@@ -370,4 +417,4 @@ for i in range(3):
     a = np.abs(np.angle(p)) / np.pi * 180
     b = np.abs(np.angle(q)) / np.pi * 180
     a, b = sorted([a, b])
-    print("basis", i + 1, "fourier_params_in_degrees", a, b, "haagerup_distance", dist)
+    print("filename", filename, "basis", i + 1, "fourier_params_in_degrees", a, b, "haagerup_distance", dist)
