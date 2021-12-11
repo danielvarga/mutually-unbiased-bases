@@ -49,17 +49,19 @@ for filename, mub in mubs.items():
     cool.append(cool_degrees)
     print(cool_degrees[:, None] - cool_degrees[None, :])
 
-while len(cool) < 49:
+
+n = int(np.ceil(np.sqrt(len(cool))))
+while len(cool) < n ** 2:
     cool.append(np.zeros_like(cool_degrees))
     print("adding dummy data")
 
-cool = np.array(cool).reshape((7, 7, 6))
+cool = np.array(cool).reshape((n, n, 6))
 
 
 cool_phases = np.exp(1j * np.pi / 180 * cool)
 
-x = np.linspace(0, 30, 7)
-y = np.linspace(0, 30, 7)
+x = np.linspace(0, 4 * n, n)
+y = np.linspace(0, 4 * n, n)
 xx, yy = np.meshgrid(x, y)
 xx = xx[:, :, None]
 yy = yy[:, :, None]

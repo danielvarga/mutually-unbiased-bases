@@ -58,9 +58,9 @@ def transform(b1, b2):
     return bestp1, bestp2, bestdist
 
 
-def the_true_decomposition(b):
+def the_true_decomposition(b_orig):
+    b = b_orig.copy()
     assert np.allclose(np.abs(b), np.ones_like(b)), "b should be sqrt(6) times a Hadamard basis."
-    b_orig = b.copy()
     d_left1 = b[:, 0].copy()
     b /= b[:, 0:1]
     d_right1 = b[0, :].copy()
@@ -116,8 +116,9 @@ def phase_to_deg(x):
 
 np.set_printoptions(precision=12, suppress=True, linewidth=100000)
 
+
 for i in range(1, 4):
-    d_left, p_left, x, y, p_right, d_right, dist = the_true_decomposition(b)
+    d_left, p_left, x, y, p_right, d_right, dist = the_true_decomposition(a[i])
     d_l = phase_to_deg(np.diag(d_left))
     d_r = phase_to_deg(np.diag(d_right))
     p_l = np.argmax(p_left, axis=0) # permutation of rows, but not here.
