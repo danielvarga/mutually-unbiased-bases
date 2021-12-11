@@ -109,16 +109,71 @@ def loss_function(mub):
         for j in range(i + 1, 3):
             # / 6 because what we call basis is 6**2 times what search.py calls basis.
             prod = np.conjugate(mub[i].T) @ mub[j] / 6
-            print(">", np.abs(prod))
             terms.append(closeness(np.abs(prod), target))
     return sum(terms)
 
 
 for (i, j) in [(0, 1), (1, 2), (2, 0)]:
     prod = np.conjugate(mub[i].T) @ mub[j]
-    print(f"| B_{i}^dagger B_{j} | / 6")
-    print(np.abs(prod) / 6)
+    # print(f"| B_{i}^dagger B_{j} | / 6")
+    # print(np.abs(prod) / 6)
 
 
 loss = loss_function(mub)
 print("loss", loss)
+
+perturbed_factorized_mub = factorized_mub.copy()
+perturbed_mub = []
+matrices = [] # rows are tuples of.
+
+
+# normalized/mub_120.npy fourier parameters:
+# a, -b
+# -a-b, -b
+# a, a+b
+# where a = 55.11476631781354, b = 0.007509388499017998
+# let's add something to both, and see what happens:
+def perturb_fourier_parameters(factorized_mub, alpha_perturbation_degree, beta_perturbation_degree):
+    perturbed_mub = []
+    alpha = np.exp(1j * np.pi / 180 * alpha_perturbation_degree)
+    beta = np.exp(1j * np.pi / 180 * beta_perturbation_degree)
+
+    for i in range(3):
+        factors = factorized_mub[i]
+        left_phases, left_pm, x, y, right_pm, right_phases = factors
+        perturbed_x = x ; perturbed_y = y
+        if i == 0:
+            perturbed_x *= alpha
+        elif i == 1:
+            perturbed_x /= alpha
+        elif i == 2:
+            perturbed_x *= alpha
+            perturbed_y *= alpha
+        if i == 0:
+            perturbed_y /= beta
+        elif i == 1:
+            perturbed_x /= beta
+            perturbed_y /= beta
+        elif i == 2:
+            perturbed_y *= beta
+        basis = factors_to_basis((left_phases, left_pm, perturbed_x, perturbed_y, right_pm, right_phases))
+        perturbed_mub.append(basis)
+    perturbed_mub = np.array(perturbed_mub)
+    return perturbed_mub
+
+
+alpha_perturbation_degrees = np.linspace(-0.01, 0.01, 100)
+beta_perturbation_degrees = np.linspace(-0.01, 0.01, 100)
+X, Y = np.meshgrid(alpha_perturbation_degrees, beta_perturbation_degrees)
+perturbation_losses = []
+for alpha_perturbation_degree in alpha_perturbation_degrees:
+    for beta_perturbation_degree in beta_perturbation_degrees:
+        perturbed_mub = perturb_fourier_parameters(factorized_mub, alpha_perturbation_degree, beta_perturbation_degree)
+        loss = loss_function(perturbed_mub)
+        perturbation_losses.append(loss)
+
+perturbation_losses = np.array(perturbation_losses).reshape(X.shape)
+from matplotlib import cm
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+surf = ax.plot_surface(X, Y, perturbation_losses, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+plt.show()
