@@ -35,8 +35,13 @@ def canonical_fourier(x, y):
     return ws
 
 
-def canonized_to_matrices(canonized_basis):
-    left_degrees, left_permutation, x_degrees, y_degrees, right_permutation, right_degrees = canonized_basis
+def factors_to_basis(factors):
+    left_phases, left_pm, x, y, right_pm, right_phases = factors
+    return np.diag(left_phases) @ left_pm @ canonical_fourier(x, y) @ right_pm @ np.diag(right_phases)
+
+
+def serialized_to_factors(serialized_basis):
+    left_degrees, left_permutation, x_degrees, y_degrees, right_permutation, right_degrees = serialized_basis
     x = degrees_to_phases(x_degrees)
     y = degrees_to_phases(y_degrees)
     left_phases = degrees_to_phases(left_degrees)
@@ -46,11 +51,12 @@ def canonized_to_matrices(canonized_basis):
     # are represented differently as permutations.
     left_pm = perm_to_pm(left_permutation).T
     right_pm = perm_to_pm(right_permutation)
-    fourier = canonical_fourier(x, y)
-    basis = np.diag(left_phases) @ left_pm @ fourier @ right_pm @ np.diag(right_phases)
+
+    factors = (left_phases, left_pm, x, y, right_pm, right_phases)
+    basis = factors_to_basis(factors)
     assert np.allclose(np.conjugate(basis.T) @ basis, 6 * np.eye(6)), "does not seem to be a basis: " + str(np.conjugate(basis.T) @ basis)
     assert np.allclose(np.abs(basis), 1), "does not seem to be Hadamard: " + str(np.abs(basis))
-    return basis
+    return factors
 
 
 mubs = {}
@@ -69,18 +75,20 @@ for l in sys.stdin:
     y_degrees = float(a[21])
     if filename not in mubs:
         mubs[filename] = []
-    mubs[filename].append((left_degrees, left_permutation, x_degrees, y_degrees, right_permutation, right_degrees))
+    factors = serialized_to_factors((left_degrees, left_permutation, x_degrees, y_degrees, right_permutation, right_degrees))
+    mubs[filename].append(factors)
 
 
 # later we will probably generalize
 assert len(mubs.keys()) == 1
-canonized_mub = mubs[filename]
-assert len(canonized_mub) == 3
+factorized_mub = mubs[filename]
+assert len(factorized_mub) == 3
 
 
 mub = []
+matrices = [] # rows are tuples of 
 for i in range(3):
-    basis = canonized_to_matrices(canonized_mub[i])
+    basis = factors_to_basis(factorized_mub[i])
     mub.append(basis)
 mub = np.array(mub)
 
