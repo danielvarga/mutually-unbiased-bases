@@ -92,7 +92,33 @@ for i in range(3):
     mub.append(basis)
 mub = np.array(mub)
 
+
+def closeness(a, b):
+    return np.sum(np.abs(a - b) ** 2)
+
+
+# numpy code reimplementing the tf code search.py:loss_fn()
+def loss_function(mub):
+    terms = []
+    for u in mub:
+        prod = np.conjugate(u.T) @ u / 6
+        terms.append(closeness(prod, np.eye(6)))
+
+    target = 1 / 6 ** 0.5
+    for i in range(3):
+        for j in range(i + 1, 3):
+            # / 6 because what we call basis is 6**2 times what search.py calls basis.
+            prod = np.conjugate(mub[i].T) @ mub[j] / 6
+            print(">", np.abs(prod))
+            terms.append(closeness(np.abs(prod), target))
+    return sum(terms)
+
+
 for (i, j) in [(0, 1), (1, 2), (2, 0)]:
     prod = np.conjugate(mub[i].T) @ mub[j]
     print(f"| B_{i}^dagger B_{j} | / 6")
     print(np.abs(prod) / 6)
+
+
+loss = loss_function(mub)
+print("loss", loss)
