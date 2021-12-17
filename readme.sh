@@ -169,27 +169,20 @@ filename normalized/mub_10006.npy basis 3 fourier_params_in_degrees 115.11206171
 ls optimum.npy normalized/*.npy | while read f ; do python true_reverse.py $f ; done > canonized_mubs
 cat canonized_mubs | python vis_phases.py > foo
 
+#########
 
-na teljesen tiszta lesz mindjárt a kép azt hiszem. és egy kicsit kevésbé érdekes, mint reméltük. lényegében egy megoldást találok mindig, azt hiszem. vannak eddig fel nem fedezett F(x, y)->F(x’, y’) csoporthatások, és ezeknek köszönhetően egy qMUB minden elemének ugyanaz az (x, y) paraméterezése. sőt, a P-kben sincs semmi kaland, mindegyikre azonosak a qMUB-on belül, balról is, jobbról is. még egy dologban nincs kaland: a jobbról ható D mindig az identitás, ez trivi a normalizálás miatt.
-szóval akkor minden egyediség a balról ható D-be szorul, meg esetleg az (x, y)-ba, de az utóbbiról lélekben lemondtam, mert minden kábé úgy néz ki, hogy x=55.11? y=0.00?. (minden fokokban.)
-mi van a bal D-vel? ilyesmi:
+# hail mary pass: can we solve the equations that define a qMUB?
+# spoiler: nope.
 
-normalized/mub_10020.npy
-[  0.      -3.744  -20.5666  58.0948 146.1523  87.2813]
-[   0.  120. -120.  120. -120.    0.]
-[   0.  120. -120.  120. -120.    0.]
-normalized/mub_1003.npy
-[  0.     -70.3359 166.9516 124.7132 -25.8805 -42.8013]
-[   0.  120. -120.    0. -120.  120.]
-[   0.  120. -120.    0. -120.  120.]
-optimum.npy
-[   0.       78.9524  -77.1919  -26.8859 -116.7346   42.4404]
-[   0.  120. -120.   -0.  120. -120.]
-[   0.  120. -120.    0.  120. -120.]
-de olyan is előfordul, hogy
-normalized/mub_10005.npy
-[  0.       5.9542  49.1784 -92.8373 115.5533  34.0481]
-[0. 0. 0. 0. 0. 0.]
-[0. 0. 0. 0. 0. 0.]
-
-ezek között nem csak hogy nincsenek ismételten felbukkanó számok (a 0 kivételével), de a páronkénti különbségeik között sem. Ezzel együtt itt már csak nem bír túl sok meglepő dolog történni, nehogymán.
+# when this is the active codepath:
+# prod = write_up_equation_for_all_products(factorized_mub) ; exit()
+# the code prints out 3 huge symbolic matrices.
+# they contain the elementwise magnitudes of the pairwise products, minus the expected elementwise magnitudes
+# predicted by the tripartition property.
+# these being all zero is equvalent to the system being a qMUB with Fourier bases F(a, 0), F(-a, 0), F(a, a) (that's like normalized/mub_120.npy but with b set to 0)
+# left phases as variables, and parameterless combinatorial properties (namely left permutations and product magnitude tripartitions)
+# copied from normalized/mub_120.npy
+# all in all, it has phase variables p[012][12345], x0. and (positive) real variables asquare, bsquare, csquare
+# asquare is symbolic variable for 36*A^2, with A,B,C the tripartition magnitudes, e.g. A=0.42593834.
+time cat canonized_mubs | grep normalized/mub_120.npy | python analyze_canonized_mubs.py > polynomial_equation_system
+# -> output added to git.
