@@ -122,11 +122,20 @@ def reorder_by_fourier_params(factorized_mub):
     return factorized_mub2
 
 
+def remove_first_left_effect(factorized_mub):
+    factors_0 = factorized_mub[0]
+    left_phases_0, left_pm_0 = factors_0[:2]
+    factorized_mub2 = []
+    for i in range(3):
+        left_phases, left_pm, x, y, right_pm, right_phases = factorized_mub[i]
+        left_phases_after = left_phases / left_phases_0
+        factorized_mub2.append((left_phases_after, left_pm, x, y, right_pm, right_phases))
+    return factorized_mub2
+
+
 factorized_mub = remove_right_effects_from_mub(factorized_mub)
 factorized_mub = reorder_by_fourier_params(factorized_mub)
-
-
-
+factorized_mub = remove_first_left_effect(factorized_mub)
 
 
 A = 0.42593834
