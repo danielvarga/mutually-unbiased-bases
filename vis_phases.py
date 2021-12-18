@@ -35,6 +35,37 @@ def canonical_fourier(x, y):
     return ws
 
 
+def cp(b1, b2):
+    return np.conjugate(b1.T) @ b2
+
+
+def cpd(b1, b2):
+    return np.abs(cp(b1, b2))
+    # return np.angle(cp(b1, b2)) * 180 / np.pi
+
+
+# let's check, maybe there's some pattern.
+# -> not really, except
+# cpd(b1, b2) does not depend on x at all,
+# and all are kinda sparse (12 nonzero elements out of 36.)
+def test_unpermuted_products():
+    x = np.exp(1j * 55.1182 / 180 * np.pi)
+    y = 1
+    b1 = canonical_fourier(x, 1)
+    b2 = canonical_fourier(-x, 1)
+    b3 = canonical_fourier(x, x)
+    np.set_printoptions(precision=3, suppress=True)
+    print("F(x, 1) ^dagger F(-x, 1)")
+    print(cpd(b1, b2))
+    print("F(-x, 1) ^dagger F(x, x)")
+    print(cpd(b2, b3))
+    print("F(x, 1) ^dagger F(x, x)")
+    print(cpd(b1, b3))
+
+
+# test_unpermuted_products() ; exit()
+
+
 def factors_to_basis(factors):
     left_phases, left_pm, x, y, right_pm, right_phases = factors
     return np.diag(left_phases) @ left_pm @ canonical_fourier(x, y) @ right_pm @ np.diag(right_phases)

@@ -186,3 +186,18 @@ cat canonized_mubs | python vis_phases.py > foo
 # asquare is symbolic variable for 36*A^2, with A,B,C the tripartition magnitudes, e.g. A=0.42593834.
 time cat canonized_mubs | grep normalized/mub_120.npy | python analyze_canonized_mubs.py > polynomial_equation_system
 # -> output added to git.
+
+
+# which of the mubs follow the fourier parameter order of mub_120?
+cat canonized_mubs | grep -v "180\." | grep "i 1 .* x 55.* y 0" | cut -f2 -d' ' > foo1
+cat canonized_mubs | grep -v "180\." | grep "i 2 .* x -55.* y 0" | cut -f2 -d' ' > foo2
+cat canonized_mubs | grep -v "180\." | grep "i 3 .* x 55.* y 55" | cut -f2 -d' ' > foo3
+cat foo1 foo2 foo3 | sort | uniq -c | awk '($1==3) { print $2 }'
+# not too many:
+normalized/mub_10712.npy
+normalized/mub_10856.npy
+normalized/mub_162.npy
+normalized/mub_263.npy
+# -> let's rather normalize them to this order, instead. or any other that's convenient.
+
+
