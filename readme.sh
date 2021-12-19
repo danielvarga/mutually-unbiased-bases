@@ -201,3 +201,13 @@ normalized/mub_263.npy
 # -> let's rather normalize them to this order, instead. or any other that's convenient.
 
 
+# just dumping D_2 concat D_3, the left phases of B_2 and B_3 after B_1 is moved to F(a, 0).
+# the order of bases follows normalized/mub_120.npy, that's F(a, 0), F(-a, 0), F(a, a).
+time cat canonized_mubs | grep " x 55.* y 55" | cut -f2 -d' ' | while read f ; do cat canonized_mubs | grep "$f" | python supercanonize_mub.py ; done > partially_supercanonized
+# ...seems like it gives a clearer picture if we use an F(a,a), F(a, 0), F(-a, 0) ordering of bases:
+time cat canonized_mubs | grep " x 55.* y 55" | cut -f2 -d' ' | while read f ; do cat canonized_mubs | grep "$f" | python supercanonize_mub.py ; done > partially_supercanonized_with_aa_lead
+
+# D_2 és D_3 1. és 4. koordinátájában mindig a pluszmínusz 67.355 és 112.64 jelenik csak meg, bár változatos az eloszlása D_i[j]-re i és j függvényében. (mindig szimmetrikus a nullára.) 
+
+# simple histogram tool:
+cat partially_supercanonized_with_aa_lead | cut -f2 -d' ' | python hist.py 

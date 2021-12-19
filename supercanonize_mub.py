@@ -105,37 +105,105 @@ def remove_right_effects_from_mub(factorized_mub):
     return factorized_mub2
 
 
-# the convention is to follow normalized/mub_120.npy order: (a, 0), (-a, 0), (a, a)
 def reorder_by_fourier_params(factorized_mub):
-    signatures = [- np.angle(factors[2]) + 10 * np.angle(factors[3]) for factors in factorized_mub]
-    # when signatures is in increasing order, we have (a, 0), (-a, 0), (a, a).
+    def signature(x, y):
+        # when this signature is in increasing order, we have (a, a), (a, 0), (-a, 0).
+        return - np.angle(x) - np.angle(y)
+
+        # when this signature is in increasing order, we have (a, 0), (-a, 0), (a, a).
+        # that's the order of normalized/mub_120.npy
+        return - np.angle(x) + 10 * np.angle(y)
+
+    signatures = [signature(factors[2], factors[3]) for factors in factorized_mub]
+
+    # signatures = [- np.angle(factors[2]) + 10 * np.angle(factors[3]) for factors in factorized_mub]
+
+
     perm = np.argsort(np.array(signatures))
     factorized_mub2 = [None, None, None]
     for to_pos, from_pos in enumerate(perm):
         factorized_mub2[to_pos] = factorized_mub[from_pos]
 
     # verify
-    signatures2 = [- np.angle(factors[2]) + 10 * np.angle(factors[3]) for factors in factorized_mub2]
+    signatures2 = [signature(factors[2], factors[3]) for factors in factorized_mub2]
     perm = np.argsort(np.array(signatures2))
     assert perm.tolist() == list(range(3))
 
     return factorized_mub2
 
 
-def remove_first_left_effect(factorized_mub):
-    factors_0 = factorized_mub[0]
-    left_phases_0, left_pm_0 = factors_0[:2]
+def switch_perm_phase(pm, phases):
+    matrix = pm @ np.diag(phases)
+    phases2 = np.sum(matrix, axis=1)
+    matrix2 = np.diag(1 / phases2) @ matrix
+    assert np.allclose(matrix, np.diag(phases2) @ matrix2)
+    assert np.allclose(matrix2 * (matrix2 - 1), 0)
+    pm2 = np.around(matrix2).real.astype(int)
+    return phases2, pm2
+
+
+def switch_phase_perm(phases, pm):
+    phases2, pm2 = switch_perm_phase(pm.T, phases)
+    return pm2.T, phases
+
+
+def apply_left_phase(factorized_mub, left_phases_to_apply):
     factorized_mub2 = []
     for i in range(3):
         left_phases, left_pm, x, y, right_pm, right_phases = factorized_mub[i]
-        left_phases_after = left_phases / left_phases_0
+        left_phases_after = left_phases * left_phases_to_apply
         factorized_mub2.append((left_phases_after, left_pm, x, y, right_pm, right_phases))
     return factorized_mub2
+
+
+def apply_left_permutation(factorized_mub, left_pm_to_apply):
+    factorized_mub2 = []
+    for i in range(3):
+        left_phases, left_pm, x, y, right_pm, right_phases = factorized_mub[i]
+        left_phases_after, pm2 = switch_perm_phase(left_pm_to_apply, left_phases)
+        factorized_mub2.append((left_phases_after, pm2 @ left_pm, x, y, right_pm, right_phases))
+    return factorized_mub2
+
+
+def remove_first_left_effect(factorized_mub):
+    factors_0 = factorized_mub[0]
+    left_phases_0, left_pm_0 = factors_0[:2]
+    factorized_mub = apply_left_phase(factorized_mub, 1 / left_phases_0)
+    factorized_mub = apply_left_permutation(factorized_mub, left_pm_0.T)
+    return factorized_mub
 
 
 factorized_mub = remove_right_effects_from_mub(factorized_mub)
 factorized_mub = reorder_by_fourier_params(factorized_mub)
 factorized_mub = remove_first_left_effect(factorized_mub)
+
+
+def dump_basis(factors):
+    left_phases, left_pm, x, y, right_pm, right_phases = factors
+    # left_pm, left_phases = switch_phase_perm(left_phases, left_pm)
+    print(np.angle(left_phases) * 180 / np.pi)
+    print(left_pm.astype(int))
+    print(np.angle(x) * 180 / np.pi, np.angle(y) * 180 / np.pi)
+
+
+def dump_mub(factorized_mub):
+    for i in range(3):
+        print("=====")
+        print(i)
+        dump_basis(factorized_mub[i])
+
+
+def short_dump_mub(factorized_mub):
+    # B_1 is F(a,0), we don't dump that.
+    # we don't look into B_2 and B_3 permutations, not shown.
+    np.set_printoptions(precision=12, suppress=True, linewidth=100000)
+    def angler(x):
+        return " ".join(map(str, (np.angle(x) * 180 / np.pi).tolist()))
+    print(angler(factorized_mub[1][0]), angler(factorized_mub[2][0]))
+
+
+short_dump_mub(factorized_mub)
+exit()
 
 
 A = 0.42593834
