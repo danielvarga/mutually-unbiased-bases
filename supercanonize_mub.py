@@ -247,6 +247,30 @@ def loss_function(mub):
     return sum(terms)
 
 
+def angler(x):
+    return np.angle(x) * 180 / np.pi
+
+
+def deconstruct_product(prod):
+    sub0 = prod[:2, :2].copy()
+    sub0 /= np.abs(sub0)
+    sub1 = prod[:2, 2:4].copy()
+    sub1 /= np.abs(sub1)
+    sub2 = prod[:2, 4:].copy()
+    sub2 /= np.abs(sub2)
+    print(np.around(angler(sub1 / sub0)))
+    print(np.around(angler(sub2 / sub0)))
+
+
+np.set_printoptions(precision=5, suppress=True, linewidth=100000)
+for (i, j) in [(0, 1), (1, 2), (2, 0)]:
+    prod = np.conjugate(mub[i].T) @ mub[j]
+    # deconstruct_product(prod)
+    print(f"| B_{i}^dagger B_{j} | / 6")
+    print(np.abs(prod) / 6)
+    print(angler(prod))
+
+
 def dump_products(mub):
     np.set_printoptions(precision=4, suppress=True, linewidth=100000)
     for i in range(3):
@@ -266,8 +290,128 @@ loss = loss_function(mub)
 print("loss", loss)
 
 
-# normalized/mub_120.npy fourier parameters:
-# a, -b
-# -a-b, -b
-# a, a+b
-# where a = 55.11476631781354, b = 0.007509388499017998
+import sympy
+from sympy import symbols, Matrix, Transpose, conjugate, expand
+from sympy.physics.quantum.dagger import Dagger
+
+
+# symbol of third root of unity.
+Wsym = symbols('W')
+
+
+def simplify_roots(expr):
+    e = expr.subs(conjugate(Wsym), Wsym ** 2)
+    e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2).subs(Wsym ** 6, 1)
+    return e
+
+
+def apply_elemwise(fn, matrix):
+    m = matrix.as_mutable()
+    for k in range(m.shape[0]):
+        for l in range(m.shape[1]):
+            m[k, l] = fn(m[k, l])
+    return m
+
+
+def enforce_norm_one(p, variables):
+    for var in variables:
+        p = p.subs(conjugate(var) * var, 1)
+    return p
+
+
+def symbolic_fourier_basis(x_var, y_var):
+    roots = [1, - Wsym ** 2, Wsym, -1, Wsym ** 2, - Wsym]
+    b = sympy.ones(6, 6)
+    for i in range(1, 6, 3):
+        for j in range(1, 6, 2):
+            b[i, j] *= x_var
+    for i in range(2, 6, 3):
+        for j in range(1, 6, 2):
+            b[i, j] *= y_var
+    for i in range(1, 6):
+        for j in range(1, 6):
+            b[i, j] *= roots[(i * j) % 6]
+    return b
+
+
+# we don't do right phase, it is identity in the cases we care about.
+def symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_var, y_var):
+    fourier = symbolic_fourier_basis(x_var, y_var)
+    return sympy.diag(left_phases_var, unpack=True) @ left_pm.astype(int) @ fourier
+
+
+# indx is needed to create the variables.
+# the only information used from factors is the left_pm.
+def create_basis(indx, factors):
+    left_phases, left_pm, x, y, right_pm, right_phases = factors
+    # we count from 0, but the 0th is always 1.
+    left_phases_var = [1] + [sympy.symbols(f'p{indx}{i}') for i in range(1, 6)]
+    x_var = sympy.symbols('x')
+    # TODO assert that x and y behaves acccordingly
+    if indx == 0:
+        x_here, y_here = x_var, x_var
+    elif indx == 1:
+        x_here, y_here = x_var, 1
+    else:
+        assert indx == 2
+        x_here, y_here = -x_var, 1
+    return left_phases_var, symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_here, y_here)
+
+
+symbolic_bases = []
+for indx in range(3):
+    factors = factorized_mub[indx]
+    left_phases_var, b = create_basis(indx, factors)
+    if indx == 0:
+        for v in left_phases_var:
+            b = b.subs(v, 1)
+    symbolic_bases.append(b)
+
+
+prod01 = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
+prod01 = simplify_roots(prod01)
+for i in range(6):
+    for j in range(6):
+        assert prod01[i, j] - prod01[(i + 2) % 6, (j + 2) % 6] == 0
+
+
+# this is the identity that prod01[0, 1] * -W^2 == prod01[0, 3]:
+b_rot = - Wsym ** 2 * prod01[0, 1]
+d = prod01[0, 3]
+print("eq1:", simplify_roots(expand(d - b_rot)))
+# -> W**2*p13 - W**2 + W*p11*x - W*p14*x + p11*x + 2*p12 + p13 - p14*x - 2*p15 - 1 = 0
+
+d_1 = factorized_mub[1][0]
+x = factorized_mub[0][2]
+magic_vector1 = np.array([-W, W**2 * x, -2, W, -W**2 * x, 2])
+print("eq1 numerically verified:", (d_1 * magic_vector1).sum())
+
+
+# this is the identity that prod01[0, 0] * W == prod[0, 4]:
+a_rot = Wsym * prod01[0, 0]
+e = prod01[0, 4]
+print("eq2:", simplify_roots(expand(e - a_rot)))
+# -> W**2*p11 + W**2*p14 - W*p11 - W*p13 - W*p14 - W + p13 + 1
+
+magic_vector2 = np.array([1 - W, W**2 - W, 0, 1 - W, W**2 - W, 0])
+print("eq2 numerically verified:", (d_1 * magic_vector2).sum())
+
+
+# this is the identity that prod01[1, 2] * -W^2 == prod01[1, 4]:
+rot = - Wsym ** 2 * prod01[1, 2]
+target = prod01[1, 4]
+print("eq3:", simplify_roots(expand(target - rot)))
+# -> -W**2*p13 + W**2 - W*p11*conjugate(x) + W*p14*conjugate(x) - p11*conjugate(x) + 2*p12*conjugate(x) - p13 + p14*conjugate(x) - 2*p15*conjugate(x) + 1
+
+magic_vector3 = np.array([W ** 2 + 1, (- W - 1) / x, 2 / x, - W ** 2 - 1, (W + 1) / x, -2 / x])
+print("eq3 numerically verified:", (d_1 * magic_vector3).sum())
+
+# this is the identity that prod01[1, 1] * W == prod01[1, 5]:
+rot = Wsym * prod01[1, 1]
+target = prod01[1, 5]
+# this is the first time we have to use |x| = 1:
+print("eq4:", enforce_norm_one(simplify_roots(expand(target - rot)), [sympy.symbols('x')]))
+# -> -W**2*p11 - W**2*p14 + W*p11 + W*p13 + W*p14 + W - p13 - 1
+
+magic_vector4 = np.array([W - 1, W - W ** 2, 0, W - 1, - W**2 + W, 0])
+print("eq4 numerically verified:", (d_1 * magic_vector4).sum())

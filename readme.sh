@@ -211,3 +211,8 @@ time cat canonized_mubs | grep " x 55.* y 55" | cut -f2 -d' ' | while read f ; d
 
 # simple histogram tool:
 cat partially_supercanonized_with_aa_lead | cut -f2 -d' ' | python hist.py 
+
+
+# we write up the B_0^dagger B_1 product symbolically,
+# and extract various equations from them.
+# TODO document.
