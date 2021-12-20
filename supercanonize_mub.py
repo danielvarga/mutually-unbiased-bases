@@ -194,16 +194,16 @@ def dump_mub(factorized_mub):
 
 
 def short_dump_mub(factorized_mub):
-    # B_1 is F(a,0), we don't dump that.
-    # we don't look into B_2 and B_3 permutations, not shown.
+    # B_1 is F(a,a), we don't dump that.
     np.set_printoptions(precision=12, suppress=True, linewidth=100000)
     def angler(x):
         return " ".join(map(str, (np.angle(x) * 180 / np.pi).tolist()))
-    print(angler(factorized_mub[1][0]), angler(factorized_mub[2][0]))
+    perm1 = np.argmax(factorized_mub[1][1], axis=1)
+    perm2 = np.argmax(factorized_mub[2][1], axis=1)
+    print(angler(factorized_mub[1][0]), perm1, angler(factorized_mub[2][0]), perm2)
 
 
 short_dump_mub(factorized_mub)
-exit()
 
 
 A = 0.42593834
@@ -247,11 +247,20 @@ def loss_function(mub):
     return sum(terms)
 
 
-for (i, j) in [(0, 1), (1, 2), (2, 0)]:
-    prod = np.conjugate(mub[i].T) @ mub[j]
-    print(f"| B_{i}^dagger B_{j} | / 6")
-    print(np.abs(prod) / 6)
+def dump_products(mub):
+    np.set_printoptions(precision=4, suppress=True, linewidth=100000)
+    for i in range(3):
+        prod = np.conjugate(mub[i].T) @ mub[i]
+        print(f"| B_{i}^dagger B_{i} | / 6")
+        print(np.abs(prod) / 6)
 
+    for (i, j) in [(0, 1), (1, 2), (2, 0)]:
+        prod = np.conjugate(mub[i].T) @ mub[j]
+        print(f"| B_{i}^dagger B_{j} | / 6")
+        print(np.abs(prod) / 6)
+
+
+# dump_products(mub)
 
 loss = loss_function(mub)
 print("loss", loss)
