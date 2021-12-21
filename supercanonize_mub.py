@@ -291,7 +291,7 @@ print("loss", loss)
 
 
 import sympy
-from sympy import symbols, Matrix, Transpose, conjugate, expand
+from sympy import symbols, Matrix, Transpose, conjugate, expand, simplify, sqrt
 from sympy.physics.quantum.dagger import Dagger
 
 
@@ -368,6 +368,10 @@ for indx in range(3):
     symbolic_bases.append(b)
 
 
+# all the below is true for normalized/mub_10040.npy and not much else.
+# the goal is to reverse engineer this single one. the rest is combinatorics,
+# the manifold is zero dimensional.
+
 prod01 = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
 prod01 = simplify_roots(prod01)
 for i in range(6):
@@ -402,9 +406,10 @@ rot = - Wsym ** 2 * prod01[1, 2]
 target = prod01[1, 4]
 print("eq3:", simplify_roots(expand(target - rot)))
 # -> -W**2*p13 + W**2 - W*p11*conjugate(x) + W*p14*conjugate(x) - p11*conjugate(x) + 2*p12*conjugate(x) - p13 + p14*conjugate(x) - 2*p15*conjugate(x) + 1
-
-magic_vector3 = np.array([W ** 2 + 1, (- W - 1) / x, 2 / x, - W ** 2 - 1, (W + 1) / x, -2 / x])
+# we multiply by x to get rid of the conjugates:
+magic_vector3 = np.array([(W ** 2 + 1) * x, (- W - 1), 2, (- W ** 2 - 1) * x, (W + 1), -2])
 print("eq3 numerically verified:", (d_1 * magic_vector3).sum())
+
 
 # this is the identity that prod01[1, 1] * W == prod01[1, 5]:
 rot = Wsym * prod01[1, 1]
@@ -412,6 +417,80 @@ target = prod01[1, 5]
 # this is the first time we have to use |x| = 1:
 print("eq4:", enforce_norm_one(simplify_roots(expand(target - rot)), [sympy.symbols('x')]))
 # -> -W**2*p11 - W**2*p14 + W*p11 + W*p13 + W*p14 + W - p13 - 1
+# -> unfortunately it's minus magic_vector2, redundant.
+#    this suggests that prod01[1, 4] / prod01[1, 0] conveys the same information as prod01[0, 5] / prod01[0, 1] aka eq6.
 
 magic_vector4 = np.array([W - 1, W - W ** 2, 0, W - 1, - W**2 + W, 0])
 print("eq4 numerically verified:", (d_1 * magic_vector4).sum())
+
+
+# this is the identity that prod01[0, 0] * np.exp(1j * 150 / 180 * np.pi) / BIG  == prod01[0, 2] / SMALL:
+# BIG aka A = 0.42593834, SMALL aka B = 0.35506058
+print("eq5: (", prod01[0, 0], ") * np.exp(1j * 150/180*pi) / A * B =", prod01[0, 2])
+# -> p11 + p12 + p13 + p14 + p15 + 1 * np.exp(1j * 150 / 180 * np.pi) / A * B = W**2*p12 + W**2*p15 + W*p11 + W*p14 + p13 + 1
+
+# print(np.exp(1j * 150/180*np.pi) / A * B)
+magic_vector5_right = np.array([1, W, W ** 2, 1, W, W ** 2])
+print("eq5 numerically verified:", d_1.sum() * np.exp(1j * 150 / 180 * np.pi) / A * B - (d_1 * magic_vector5_right).sum())
+
+magic_vector5 = np.ones(6) * np.exp(1j * 150 / 180 * np.pi) / A * B - magic_vector5_right
+print("eq5prime numerically verified:", (d_1 * magic_vector5).sum())
+
+
+# this is the identity that prod01[0, 1] * - W / BIG  == prod01[0, 5] / MED:
+print("eq6: (", simplify_roots(expand(- Wsym * prod01[0, 1])), ") * C / A =", prod01[0, 5])
+# eq6: ( -W**2*p12 + W**2*p15 - W*p13 + W - p11*x + p14*x ) * C / A = W**2*p12 - W**2*p15 + W*p11*x - W*p14*x + p13 - 1
+
+magic_vector6_left  = np.array([ W,   - x, - W ** 2, - W,       x,   W ** 2])
+magic_vector6_right = np.array([-1, W * x,   W ** 2,   1, - W * x, - W ** 2])
+print("eq6 numerically verified:", (d_1 * magic_vector6_left).sum() * C / A - (d_1 * magic_vector6_right).sum())
+
+magic_vector6 = magic_vector6_left * C / A - magic_vector6_right
+print("eq6prime numerically verified:", (d_1 * magic_vector6).sum())
+
+
+# constraints = np.stack([magic_vector3, magic_vector6])
+# eq2 and eq4 exactly sum to zero symbolically.
+# eq3 and eq6 seem to be numerically redundant from the perspective of D_1,
+# (with empirical x, A, C substituted), but that can actually
+# make them valuable from the perspective of getting constraints
+# about x, A, C. not sure they are actually redundant, though. it's very imprecise.
+# the second three is always minus the first three, so we only consider the first three.
+def whats_up_with_eq3_vs_eq6():
+    magic_vector3 = np.array([(W ** 2 + 1) * x, (- W - 1), 2])
+    magic_vector6_left  = np.array([ W,   - x, - W ** 2])
+    magic_vector6_right = np.array([-1, W * x,   W ** 2])
+    magic_vector6 = magic_vector6_left * C / A - magic_vector6_right
+    print("magic_vector6 / magic_vector3", magic_vector6 / magic_vector3)
+    np.set_printoptions(precision=12, suppress=True, linewidth=100000)
+    print(np.abs(magic_vector6 / magic_vector3), angler(magic_vector6 / magic_vector3))
+
+
+print("linear constraints:")
+constraints = np.stack([magic_vector1, magic_vector2, magic_vector3, magic_vector5, magic_vector6])
+
+print(constraints)
+np.set_printoptions(precision=12, suppress=False, linewidth=100000)
+u, s, vh = np.linalg.svd(constraints)
+print(s)
+
+# TODO do the rest, there are a couple of hopefully nonredundant ones.
+# TODO do even the redundant ones, maybe they are nicer looking.
+
+
+xvar = symbols('x')
+left_phases_var = Matrix([[1] + [sympy.symbols(f'p1{i}') for i in range(1, 6)]]) # row vector
+magic1sym = Matrix([-Wsym, Wsym**2 * xvar, -2, Wsym, -Wsym**2 * xvar, 2]) # column vector
+print(left_phases_var @ magic1sym)
+
+magic2sym = Matrix([1 - Wsym, Wsym**2 - Wsym, 0, 1 - Wsym, Wsym**2 - Wsym, 0])
+print(left_phases_var @ magic2sym)
+
+magic3sym = Matrix([(Wsym ** 2 + 1) * xvar, (- Wsym - 1), 2, (- Wsym ** 2 - 1) * xvar, (Wsym + 1), -2])
+print(left_phases_var @ magic3sym)
+
+
+BperAvar = symbols('BperA')
+magic5rightsym = Matrix([1, Wsym, Wsym ** 2, 1, Wsym, Wsym ** 2])
+magic5sym = Matrix([1] * 6) * (1j/2 - sqrt(3) / 2) * BperAvar - magic5rightsym
+print(simplify(left_phases_var @ magic5sym))
