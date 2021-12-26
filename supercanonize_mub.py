@@ -291,7 +291,7 @@ print("loss", loss)
 
 
 import sympy
-from sympy import symbols, Matrix, Transpose, conjugate, expand, simplify, sqrt
+from sympy import symbols, Matrix, Transpose, conjugate, expand, simplify, sqrt, Rational
 from sympy.physics.quantum.dagger import Dagger
 
 
@@ -446,7 +446,37 @@ magic_vector6_right = np.array([-1, W * x,   W ** 2,   1, - W * x, - W ** 2])
 print("eq6 numerically verified:", (d_1 * magic_vector6_left).sum() * C / A - (d_1 * magic_vector6_right).sum())
 
 magic_vector6 = magic_vector6_left * C / A - magic_vector6_right
+print("magic_vector6", magic_vector6)
 print("eq6prime numerically verified:", (d_1 * magic_vector6).sum())
+
+
+# this is extracted from the raw empirical observation of D_1. it starts with 0, -120 degrees.
+magic_vector7 = np.array([- 1, W, 0, 0, 0, 0])
+print("eq7 numerically verified:", (d_1 * magic_vector7).sum())
+
+
+# this is extracted from the raw empirical observation of D_1. D_1[3] = 120+D_1[4], where D_1[4] ~ 7.355.
+magic_vector8 = np.array([0, 0, 0, -1, W, 0])
+print("eq8 numerically verified:", (d_1 * magic_vector8).sum())
+
+
+# according to the svd rank analysis, eq7 and eq8 are not equivalent to any of the rest
+# in isolation, but adding them to eqs eq1-eq6 does not increase the rank (it's still 4).
+# a maximum rank span is eq1, eq5, eq7, eq8.
+# eq5 is the tricky one with the magnitude ratio, but eqs 1-7-8 already give us
+# something nontrivial according to linsolve:
+# p12 = W*x/2 - W/2 + p14*(-W**2*x/2 + W**2/2) + p15
+# manually that's
+# p12 = (1 - x) / 2 * W**2 * (p14 - W**2) + p15
+# why is this even a phase? this is our first identity moving beyond the
+# form "element of prod12 is constant times another element" (eqs 1-6) or
+# from "element of D_1 is constant times another element" (eqs 7-8).
+
+p14, p15 = d_1[4:]
+p12supposedly = (1 - x) / 2 * W**2 * (p14 - W**2) + p15
+
+print("equation linsolve'd from eq1-7-8 is numerically verified:", d_1[2] - p12supposedly)
+
 
 
 # constraints = np.stack([magic_vector3, magic_vector6])
@@ -467,12 +497,14 @@ def whats_up_with_eq3_vs_eq6():
 
 
 print("linear constraints:")
-constraints = np.stack([magic_vector1, magic_vector2, magic_vector3, magic_vector5, magic_vector6])
+constraints = np.stack([magic_vector1, magic_vector2, magic_vector3, magic_vector5, magic_vector6, magic_vector7, magic_vector8])
+constraints = np.stack([magic_vector1, magic_vector5, magic_vector7, magic_vector8])
 
-print(constraints)
+# print(constraints)
 np.set_printoptions(precision=12, suppress=False, linewidth=100000)
 u, s, vh = np.linalg.svd(constraints)
 print(s)
+
 
 # TODO do the rest, there are a couple of hopefully nonredundant ones.
 # TODO do even the redundant ones, maybe they are nicer looking.
@@ -494,3 +526,39 @@ BperAvar = symbols('BperA')
 magic5rightsym = Matrix([1, Wsym, Wsym ** 2, 1, Wsym, Wsym ** 2])
 magic5sym = Matrix([1] * 6) * (1j/2 - sqrt(3) / 2) * BperAvar - magic5rightsym
 print(simplify(left_phases_var @ magic5sym))
+
+
+CperAvar = symbols('CperA')
+magic6leftsym = Matrix([ Wsym,   - xvar, - Wsym ** 2, - Wsym,    xvar,   Wsym ** 2])
+magic6rightsym = Matrix([-1, Wsym * xvar,   Wsym ** 2,   1, - Wsym * xvar, - Wsym ** 2])
+magic6sym = magic6leftsym * CperAvar - magic6rightsym
+
+# print(">>>", expand(magic6sym.subs(xvar, x).subs(CperAvar, C/A).subs(Wsym, -0.5 - 3 ** 0.5 / 2j)))
+
+
+magic7sym = Matrix([-1, Wsym, 0, 0, 0, 0])
+magic8sym = Matrix([0, 0, 0, -1, Wsym, 0])
+
+
+
+
+from sympy.solvers.solveset import linsolve
+
+p_var = tuple(sympy.symbols(f'p1{i}') for i in range(1, 6))
+
+def apply(magicsym):
+    return (left_phases_var @ magicsym)[0]
+
+eq_system = [apply(magicsym) for magicsym in [magic1sym, magic2sym, magic3sym, magic5sym, magic6sym, magic7sym, magic8sym]]
+eq_system = [apply(magicsym) for magicsym in [magic1sym, magic2sym, magic5sym, magic7sym, magic8sym]]
+eq_system = [eq.subs(Wsym, Rational(- 1, 2) - 1j * sqrt(3) * Rational(1, 2)) for eq in eq_system]
+print(eq_system)
+
+print("=======")
+
+sols = linsolve(eq_system, p_var)
+
+sols = list(sols)[0]
+sols = [simplify(expand(v)) for v in sols]
+for i, v in enumerate(sols):
+    print(i + 1, v)
