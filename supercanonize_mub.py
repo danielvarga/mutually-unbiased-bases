@@ -205,21 +205,6 @@ def short_dump_mub(factorized_mub):
 
 short_dump_mub(factorized_mub)
 
-
-A = 0.42593834
-B = 0.35506058
-C = 0.38501704
-D = 0.40824829
-numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
-
-def reconstruct_tripartition(b0, b1):
-    magic_constants = [1, 2, 3]
-    msquared = np.abs(np.conjugate(b0.T) @ b1) ** 2
-    masks = [np.isclose(msquared, numerical_magic_constants[i]).astype(int) for i in range(3)]
-    assert np.all(masks[0] | masks[1] | masks[2])
-    magic_matrix = sum(magic_constants[i] * masks[i] for i in range(3))
-    return magic_matrix, magic_constants
-
 mub = []
 for i in range(3):
     basis = factors_to_basis(factorized_mub[i])
@@ -262,13 +247,20 @@ def deconstruct_product(prod):
     print(np.around(angler(sub2 / sub0)))
 
 
-np.set_printoptions(precision=5, suppress=True, linewidth=100000)
+np.set_printoptions(precision=3, suppress=True, linewidth=100000)
 for (i, j) in [(0, 1), (1, 2), (2, 0)]:
     prod = np.conjugate(mub[i].T) @ mub[j]
     # deconstruct_product(prod)
     print(f"| B_{i}^dagger B_{j} | / 6")
     print(np.abs(prod) / 6)
+    ang = angler(prod)
     print(angler(prod))
+    # these three elements determine the product up to combinatorics,
+    # but they are only two degrees of freedom really, because
+    # ang[0,1] = ang[0,0] + delta, ang[1,0] = ang[0,0] - delta, for some delta.
+    for (i, j) in [(0, 0), (0, 1), (1, 0)]:
+        print(i, j)
+        print(ang - ang[i, j])
 
 
 def dump_products(mub):
@@ -293,6 +285,7 @@ print("loss", loss)
 import sympy
 from sympy import symbols, Matrix, Transpose, conjugate, expand, simplify, sqrt, Rational
 from sympy.physics.quantum.dagger import Dagger
+from sympy.matrices.dense import matrix_multiply_elementwise
 
 
 # symbol of third root of unity.
@@ -372,11 +365,93 @@ for indx in range(3):
 # the goal is to reverse engineer this single one. the rest is combinatorics,
 # the manifold is zero dimensional.
 
-prod01 = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
-prod01 = simplify_roots(prod01)
+prod01sym = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
+prod01sym = simplify_roots(prod01sym)
+
+
+A = 0.42593834
+B = 0.35506058
+C = 0.38501704
+D = 0.40824829
+numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
+
+
+
+# at this point we hardwire mub_10024.py, sorry.
+# its distinct characteristic is that the tripartition
+# looks like this:
+# .U..V.
+# U..V..
+# ..V..U
+# .V..U.
+# V..U..
+# ..U..V
+# (U=0.35, V=0.38, .=0.40)
+# thanks to this, the top left corner of its normalized form obeys these rules:
+# ab.... (alpha, beta, gamma really)
+# c.....
+# ......
+# beta/alpha = alpha/gamma
+# delta := beta/alpha
+# other than that, we a general, so it would not be hard to cover all qmubs.
+def reconstruct_product(b0, b1):
+    prod = np.conjugate(b0.T) @ b1
+    msquared = np.abs(prod) ** 2
+    normed = prod.copy()
+    normed /= np.abs(normed)
+    WW = np.exp(TIP / 12)
+    roots = WW ** np.arange(12)
+    alpha = normed[0, 0]
+    beta = normed[0, 1]
+    delta = beta / alpha
+    assert np.isclose(normed[1, 0], alpha / delta), "this is a restriction currently, please use mub_10024.py or generalize"
+    candidates = np.array([alpha, alpha * delta, alpha / delta])
+    all_candidates = candidates[:, None] * roots[None, :]
+    masks = [np.isclose(normed, all_candidates[i, j], atol=1e-5).astype(int) for i in range(3) for j in range(12)]
+    masks = np.array(masks).reshape((3, 12, 6, 6))
+    assert masks.sum() == 36, "some elements of the product could not be indentified"
+    WWsym = sympy.symbols('WW') # 12th root of unity.
+    # TODO we can do it without increasing the degree
+    roots_sym = Matrix([WWsym ** i for i in range(12)])
+    alphasym, deltasym = sympy.symbols('alpha delta')
+    candidates_sym = [alphasym, alphasym * deltasym, alphasym * conjugate(deltasym)]
+
+    normed_prod_sym = sympy.ones(6, 6)
+    for i in range(6):
+        for j in range(6):
+            onehot = masks[:, :, i, j]
+            element_index = np.argmax(onehot.sum(axis=1))
+            rotation = np.argmax(onehot.sum(axis=0))
+            assert onehot[element_index, rotation] == 1
+            normed_prod_sym[i, j] *= candidates_sym[element_index] * roots_sym[rotation]
+    print(normed_prod_sym)
+
+    msquared = np.abs(prod) ** 2
+    masks = [np.isclose(msquared, numerical_magic_constants[i]).astype(int) for i in range(3)]
+    masks = np.array(masks)
+    magnitudes_sym = sympy.symbols('A B C')
+    magnitude_matrix_sym = sympy.ones(6, 6)
+    for i in range(6):
+        for j in range(6):
+            element_index = np.argmax(masks[:, i, j])
+            magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
+    print(magnitude_matrix_sym)
+    return matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
+
+
+
+prod_sym = reconstruct_product(mub[0], mub[1])
+print(prod_sym)
+exit()
+
+
+# this is not true at all for the new triple-F(a,0) bases:
+'''
 for i in range(6):
     for j in range(6):
         assert prod01[i, j] - prod01[(i + 2) % 6, (j + 2) % 6] == 0
+'''
+
 
 
 # this is the identity that prod01[0, 1] * -W^2 == prod01[0, 3]:
