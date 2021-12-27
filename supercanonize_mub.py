@@ -335,38 +335,20 @@ def symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_var, y_var):
 
 # indx is needed to create the variables.
 # the only information used from factors is the left_pm.
+# we assume that all of them are F(x, 1) bases.
 def create_basis(indx, factors):
     left_phases, left_pm, x, y, right_pm, right_phases = factors
-    # we count from 0, but the 0th is always 1.
-    left_phases_var = [1] + [sympy.symbols(f'p{indx}{i}') for i in range(1, 6)]
+    assert np.isclose(np.angle(x) / TP * 360, 55.118, atol=1e-4)
+    assert np.isclose(y, 1)
+    left_phases_var = [sympy.symbols(f'p{indx}{i}') for i in range(6)]
     x_var = sympy.symbols('x')
-    # TODO assert that x and y behaves acccordingly
-    if indx == 0:
-        x_here, y_here = x_var, x_var
-    elif indx == 1:
-        x_here, y_here = x_var, 1
-    else:
-        assert indx == 2
-        x_here, y_here = -x_var, 1
-    return left_phases_var, symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_here, y_here)
-
-
-symbolic_bases = []
-for indx in range(3):
-    factors = factorized_mub[indx]
-    left_phases_var, b = create_basis(indx, factors)
-    if indx == 0:
-        for v in left_phases_var:
-            b = b.subs(v, 1)
-    symbolic_bases.append(b)
+    return left_phases_var, symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_var, 1)
 
 
 # all the below is true for normalized/mub_10040.npy and not much else.
 # the goal is to reverse engineer this single one. the rest is combinatorics,
 # the manifold is zero dimensional.
 
-prod01sym = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
-prod01sym = simplify_roots(prod01sym)
 
 
 A = 0.42593834
@@ -375,7 +357,16 @@ C = 0.38501704
 D = 0.40824829
 numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 
+WWsym = sympy.symbols('WW') # 12th root of unity.
+magnitudes_sym = sympy.symbols('A B C')
+xvar = symbols('x')
+alphasym, deltasym = sympy.symbols('alpha delta')
+left_phases_var = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row vector
 
+d_1 = factorized_mub[1][0]
+x = factorized_mub[0][2]
+alpha = 0.8078018037463457+0.589454193185654j
+delta = -0.12834049204788406+0.9917301639563593j
 
 # at this point we hardwire mub_10024.py, sorry.
 # its distinct characteristic is that the tripartition
@@ -393,7 +384,7 @@ numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 # ......
 # beta/alpha = alpha/gamma
 # delta := beta/alpha
-# other than that, we a general, so it would not be hard to cover all qmubs.
+# other than that, we are general, so it would not be hard to cover all qmubs.
 def reconstruct_product(b0, b1):
     prod = np.conjugate(b0.T) @ b1
     msquared = np.abs(prod) ** 2
@@ -404,16 +395,15 @@ def reconstruct_product(b0, b1):
     alpha = normed[0, 0]
     beta = normed[0, 1]
     delta = beta / alpha
+    print("alpha", alpha, "delta", delta)
     assert np.isclose(normed[1, 0], alpha / delta), "this is a restriction currently, please use mub_10024.py or generalize"
     candidates = np.array([alpha, alpha * delta, alpha / delta])
     all_candidates = candidates[:, None] * roots[None, :]
     masks = [np.isclose(normed, all_candidates[i, j], atol=1e-5).astype(int) for i in range(3) for j in range(12)]
     masks = np.array(masks).reshape((3, 12, 6, 6))
     assert masks.sum() == 36, "some elements of the product could not be indentified"
-    WWsym = sympy.symbols('WW') # 12th root of unity.
     # TODO we can do it without increasing the degree
     roots_sym = Matrix([WWsym ** i for i in range(12)])
-    alphasym, deltasym = sympy.symbols('alpha delta')
     candidates_sym = [alphasym, alphasym * deltasym, alphasym * conjugate(deltasym)]
 
     normed_prod_sym = sympy.ones(6, 6)
@@ -424,25 +414,82 @@ def reconstruct_product(b0, b1):
             rotation = np.argmax(onehot.sum(axis=0))
             assert onehot[element_index, rotation] == 1
             normed_prod_sym[i, j] *= candidates_sym[element_index] * roots_sym[rotation]
-    print(normed_prod_sym)
+    assert np.allclose(sym_to_num(normed_prod_sym), normed)
 
     msquared = np.abs(prod) ** 2
     masks = [np.isclose(msquared, numerical_magic_constants[i]).astype(int) for i in range(3)]
     masks = np.array(masks)
-    magnitudes_sym = sympy.symbols('A B C')
-    magnitude_matrix_sym = sympy.ones(6, 6)
+    magnitude_matrix_sym = 6 * sympy.ones(6, 6)
     for i in range(6):
         for j in range(6):
             element_index = np.argmax(masks[:, i, j])
             magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
-    print(magnitude_matrix_sym)
+    assert np.allclose(sym_to_num(magnitude_matrix_sym), np.abs(prod))
     return matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
 
 
+def sym_to_num(formula):
+    f = formula.subs(Wsym, W).subs(WWsym, np.exp(TIP/12))
+    f = f.subs(xvar, x)
+    # f = f.subs(BperAvar, B/A).subs(CperAvar, C/A)
+    f = f.subs(magnitudes_sym[0], A).subs(magnitudes_sym[1], B).subs(magnitudes_sym[2], C)
+    f = f.subs(alphasym, alpha).subs(deltasym, delta)
+    # TODO we don't substitute d_2.
+    for i in range(6):
+        f = f.subs(left_phases_var[i], d_1[i])
+    try:
+        a = np.array(f, dtype=np.complex128)
+    except:
+        print("failed to fully evaluate", formula)
+        print("still variables left in", f)
+        raise
+    return np.squeeze(a)
 
-prod_sym = reconstruct_product(mub[0], mub[1])
-print(prod_sym)
+
+def create_symbolic_mub(factorized_mub):
+    symbolic_bases = []
+    for indx in range(3):
+        factors = factorized_mub[indx]
+        left_phases_var, b = create_basis(indx, factors)
+        if indx == 0:
+            for v in [sympy.symbols(f'p{indx}{i}') for i in range(6)]:
+                b = b.subs(v, 1)
+        symbolic_bases.append(b)
+    return symbolic_bases
+
+
+symbolic_bases = create_symbolic_mub(factorized_mub)
+
+# why range(2) not range(3)?
+# we don't do anything with B_2 (the last basis) now,
+# so we don't even substitute its phases.
+# TODO we should.
+for i in range(2):
+    assert np.allclose(sym_to_num(symbolic_bases[i]), mub[i])
+
+prod01sym = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
+prod01sym = simplify_roots(prod01sym)
+
+assert np.allclose(sym_to_num(prod01sym), np.conjugate(mub[0].T) @ mub[1])
+
+prod01reconstructed_sym = reconstruct_product(mub[0], mub[1])
+diff = prod01sym - prod01reconstructed_sym
+
+assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
+
+
+diff = diff.subs(Wsym, - Rational(1, 2) + 1j * sqrt(3) * Rational(1, 2))
+diff = diff.subs(WWsym, Rational(1, 2) * 1j + sqrt(3) * Rational(1, 2))
+
+assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
+
+for i in range(6):
+    for j in range(6):
+        print(i, j, "=>", diff[i, j])
+
 exit()
+
+
 
 
 # this is not true at all for the new triple-F(a,0) bases:
@@ -453,15 +500,12 @@ for i in range(6):
 '''
 
 
-
 # this is the identity that prod01[0, 1] * -W^2 == prod01[0, 3]:
 b_rot = - Wsym ** 2 * prod01[0, 1]
 d = prod01[0, 3]
 print("eq1:", simplify_roots(expand(d - b_rot)))
 # -> W**2*p13 - W**2 + W*p11*x - W*p14*x + p11*x + 2*p12 + p13 - p14*x - 2*p15 - 1 = 0
 
-d_1 = factorized_mub[1][0]
-x = factorized_mub[0][2]
 magic_vector1 = np.array([-W, W**2 * x, -2, W, -W**2 * x, 2])
 print("eq1 numerically verified:", (d_1 * magic_vector1).sum())
 
@@ -585,8 +629,6 @@ print(s)
 # TODO do even the redundant ones, maybe they are nicer looking.
 
 
-xvar = symbols('x')
-left_phases_var = Matrix([[1] + [sympy.symbols(f'p1{i}') for i in range(1, 6)]]) # row vector
 
 magic1sym = Matrix([-Wsym, Wsym**2 * xvar, -2, Wsym, -Wsym**2 * xvar, 2]) # column vector
 print(left_phases_var @ magic1sym)
@@ -616,13 +658,6 @@ magic7sym = Matrix([-1, Wsym, 0, 0, 0, 0])
 magic8sym = Matrix([0, 0, 0, -1, Wsym, 0])
 
 
-def sym_to_num(formula):
-    f = formula.subs(Wsym, W)
-    f = f.subs(xvar, x).subs(BperAvar, B/A).subs(CperAvar, C/A)
-    for i in range(1, 6):
-        f = f.subs(left_phases_var[i], d_1[i])
-    a = np.array(f, dtype=np.complex128)
-    return np.squeeze(a)
 
 
 np.set_printoptions(precision=12, suppress=True, linewidth=100000)
