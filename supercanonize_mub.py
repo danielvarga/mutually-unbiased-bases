@@ -512,6 +512,7 @@ print(s)
 
 xvar = symbols('x')
 left_phases_var = Matrix([[1] + [sympy.symbols(f'p1{i}') for i in range(1, 6)]]) # row vector
+
 magic1sym = Matrix([-Wsym, Wsym**2 * xvar, -2, Wsym, -Wsym**2 * xvar, 2]) # column vector
 print(left_phases_var @ magic1sym)
 
@@ -540,6 +541,21 @@ magic7sym = Matrix([-1, Wsym, 0, 0, 0, 0])
 magic8sym = Matrix([0, 0, 0, -1, Wsym, 0])
 
 
+def sym_to_num(formula):
+    f = formula.subs(Wsym, W)
+    f = f.subs(xvar, x).subs(BperAvar, B/A).subs(CperAvar, C/A)
+    for i in range(1, 6):
+        f = f.subs(left_phases_var[i], d_1[i])
+    a = np.array(f, dtype=np.complex128)
+    return np.squeeze(a)
+
+
+np.set_printoptions(precision=12, suppress=True, linewidth=100000)
+
+for i, magicsym in enumerate([magic1sym, magic2sym, magic3sym, None, magic5sym, magic6sym, magic7sym, magic8sym], 1):
+    if magicsym is None:
+        continue
+    print(f"verifying EQ{i}:", np.abs(sym_to_num(left_phases_var @ magicsym)))
 
 
 from sympy.solvers.solveset import linsolve
@@ -551,6 +567,7 @@ def apply(magicsym):
 
 eq_system = [apply(magicsym) for magicsym in [magic1sym, magic2sym, magic3sym, magic5sym, magic6sym, magic7sym, magic8sym]]
 eq_system = [apply(magicsym) for magicsym in [magic1sym, magic2sym, magic5sym, magic7sym, magic8sym]]
+eq_system = [apply(magicsym) for magicsym in [magic2sym, magic5sym, magic7sym, magic8sym]]
 eq_system = [eq.subs(Wsym, Rational(- 1, 2) - 1j * sqrt(3) * Rational(1, 2)) for eq in eq_system]
 print(eq_system)
 
@@ -559,6 +576,6 @@ print("=======")
 sols = linsolve(eq_system, p_var)
 
 sols = list(sols)[0]
-sols = [simplify(expand(v)) for v in sols]
+sols = [expand(v).factor(BperAvar) for v in sols]
 for i, v in enumerate(sols):
     print(i + 1, v)

@@ -87,6 +87,10 @@ def the_true_decomposition(b_orig):
             if not np.isclose(-y, x):
                 break
 
+    if x.imag < 0:
+        x = np.conjugate(x)
+    y = 1.0
+
     candidate_basis = canonical_fourier(x, y)
     p1, p2, dist = transform(candidate_basis, b)
     b_reconstruct2 = candidate_basis[p1, :]

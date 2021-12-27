@@ -215,4 +215,8 @@ cat partially_supercanonized_with_aa_lead | cut -f2 -d' ' | python hist.py
 
 # we write up the B_0^dagger B_1 product symbolically,
 # and extract various equations from them.
-# TODO document.
+# lots of undocumented work on this, but it's obsoleted by the realization
+# that all three bases are in the same orbit. F(a, a) is in the orbit of F(a, 0),
+# for all a. With that, we patch true_reverse.py to always give bases in the form of D P F(a, 0):
+
+time ls optimum.npy normalized/*.npy | while read f ; do python true_reverse.py $f ; done > very_canonized_mubs
