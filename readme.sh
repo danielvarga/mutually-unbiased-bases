@@ -220,3 +220,7 @@ cat partially_supercanonized_with_aa_lead | cut -f2 -d' ' | python hist.py
 # for all a. With that, we patch true_reverse.py to always give bases in the form of D P F(a, 0):
 
 time ls optimum.npy normalized/*.npy | while read f ; do python true_reverse.py $f ; done > very_canonized_mubs
+
+# also another version where it's all F(a, a):
+time ls optimum.npy normalized/*.npy | while read f ; do python true_reverse.py $f ; done > very_canonized_mubs_faa
+

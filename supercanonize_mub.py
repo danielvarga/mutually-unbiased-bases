@@ -478,214 +478,93 @@ diff = prod01sym - prod01reconstructed_sym
 assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
 
 
-diff = diff.subs(Wsym, - Rational(1, 2) + 1j * sqrt(3) * Rational(1, 2))
-diff = diff.subs(WWsym, Rational(1, 2) * 1j + sqrt(3) * Rational(1, 2))
+def subs_roots(f):
+    f = f.subs(Wsym, - Rational(1, 2) + 1j * sqrt(3) * Rational(1, 2))
+    f = f.subs(WWsym, Rational(1, 2) * 1j + sqrt(3) * Rational(1, 2))
+    f = expand(f)
+    return f
+
+
+diff = subs_roots(diff)
 
 assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
 
+'''
 for i in range(6):
     for j in range(6):
         print(i, j, "=>", diff[i, j])
-
-exit()
-
-
-
-
-# this is not true at all for the new triple-F(a,0) bases:
 '''
-for i in range(6):
+
+
+def extract_directions(eq):
+    phases = [sympy.symbols(f'p1{i}') for i in range(6)]
+    bias = eq
+    for phase in phases:
+        bias = bias.subs(phase, 0)
+    return Matrix([sympy.diff(eq, v) for v in phases]), bias
+
+
+directions = []
+biases = []
+for i in range(1):
     for j in range(6):
-        assert prod01[i, j] - prod01[(i + 2) % 6, (j + 2) % 6] == 0
-'''
+        direction, bias = extract_directions(diff[i, j])
+        directions.append(sym_to_num(direction))
+        biases.append(sym_to_num(bias))
+directions = np.array(directions)
+biases = np.array(biases)
+
+# indeed, if you know the first row of the product,
+# that already determines D_1.
+# that's true for any other row or column, by the way.
+# or even any contiguous 2x3 or 3x2 submatrix.
+d_1_predictions = np.linalg.solve(directions, -biases)
+assert np.allclose(d_1_predictions, d_1, atol=1e-4)
+print("passed the test: D_1 can be reconstructed from these elements of the product")
 
 
-# this is the identity that prod01[0, 1] * -W^2 == prod01[0, 3]:
-b_rot = - Wsym ** 2 * prod01[0, 1]
-d = prod01[0, 3]
-print("eq1:", simplify_roots(expand(d - b_rot)))
-# -> W**2*p13 - W**2 + W*p11*x - W*p14*x + p11*x + 2*p12 + p13 - p14*x - 2*p15 - 1 = 0
-
-magic_vector1 = np.array([-W, W**2 * x, -2, W, -W**2 * x, 2])
-print("eq1 numerically verified:", (d_1 * magic_vector1).sum())
-
-
-# this is the identity that prod01[0, 0] * W == prod[0, 4]:
-a_rot = Wsym * prod01[0, 0]
-e = prod01[0, 4]
-print("eq2:", simplify_roots(expand(e - a_rot)))
-# -> W**2*p11 + W**2*p14 - W*p11 - W*p13 - W*p14 - W + p13 + 1
-
-magic_vector2 = np.array([1 - W, W**2 - W, 0, 1 - W, W**2 - W, 0])
-print("eq2 numerically verified:", (d_1 * magic_vector2).sum())
+def create_and_verify_eq(formula):
+    eq = subs_roots(formula)
+    num = sym_to_num(eq)
+    print(eq, num)
+    try:
+        assert np.isclose(num, 0, atol=1e-5)
+    except:
+        print(eq, "should be numerically 0 but is", num)
+    return eq
 
 
-# this is the identity that prod01[1, 2] * -W^2 == prod01[1, 4]:
-rot = - Wsym ** 2 * prod01[1, 2]
-target = prod01[1, 4]
-print("eq3:", simplify_roots(expand(target - rot)))
-# -> -W**2*p13 + W**2 - W*p11*conjugate(x) + W*p14*conjugate(x) - p11*conjugate(x) + 2*p12*conjugate(x) - p13 + p14*conjugate(x) - 2*p15*conjugate(x) + 1
-# we multiply by x to get rid of the conjugates:
-magic_vector3 = np.array([(W ** 2 + 1) * x, (- W - 1), 2, (- W ** 2 - 1) * x, (W + 1), -2])
-print("eq3 numerically verified:", (d_1 * magic_vector3).sum())
+eqA = create_and_verify_eq(left_phases_var[0] - conjugate(xvar))
+eqB = create_and_verify_eq(left_phases_var[1] + Wsym ** 2)
+# left_phases_var[3] * xvar * (- W ** 2) = left_phases_var[4]
+eqC = create_and_verify_eq(left_phases_var[4] - left_phases_var[3] * xvar * (- Wsym ** 2))
+
+# prod[0,2] = prod[0,0] + 60 degs
+eq1 = create_and_verify_eq(prod01sym[0, 2] + prod01sym[0, 0] * Wsym ** 2)
+
+# prod[1,1] = prod[0,0] + 180 degs
+eq2 = create_and_verify_eq(prod01sym[1, 1] + prod01sym[0, 0])
+
+# prod[1,5] = prod[0,0] + 120 degs
+eq3 = create_and_verify_eq(prod01sym[1, 5] - Wsym * prod01sym[0, 0])
+
+# that's the first beta equation:
+eq4 = create_and_verify_eq(prod01sym[1, 4] - Wsym ** 2 * prod01sym[1, 2])
 
 
-# this is the identity that prod01[1, 1] * W == prod01[1, 5]:
-rot = Wsym * prod01[1, 1]
-target = prod01[1, 5]
-# this is the first time we have to use |x| = 1:
-print("eq4:", enforce_norm_one(simplify_roots(expand(target - rot)), [sympy.symbols('x')]))
-# -> -W**2*p11 - W**2*p14 + W*p11 + W*p13 + W*p14 + W - p13 - 1
-# -> unfortunately it's minus magic_vector2, redundant.
-#    this suggests that prod01[1, 4] / prod01[1, 0] conveys the same information as prod01[0, 5] / prod01[0, 1] aka eq6.
+eqs = [eqA, eqB, eqC, eq1]
 
-magic_vector4 = np.array([W - 1, W - W ** 2, 0, W - 1, - W**2 + W, 0])
-print("eq4 numerically verified:", (d_1 * magic_vector4).sum())
+print(eqs)
 
-
-# this is the identity that prod01[0, 0] * np.exp(1j * 150 / 180 * np.pi) / BIG  == prod01[0, 2] / SMALL:
-# BIG aka A = 0.42593834, SMALL aka B = 0.35506058
-print("eq5: (", prod01[0, 0], ") * np.exp(1j * 150/180*pi) / A * B =", prod01[0, 2])
-# -> p11 + p12 + p13 + p14 + p15 + 1 * np.exp(1j * 150 / 180 * np.pi) / A * B = W**2*p12 + W**2*p15 + W*p11 + W*p14 + p13 + 1
-
-# print(np.exp(1j * 150/180*np.pi) / A * B)
-magic_vector5_right = np.array([1, W, W ** 2, 1, W, W ** 2])
-print("eq5 numerically verified:", d_1.sum() * np.exp(1j * 150 / 180 * np.pi) / A * B - (d_1 * magic_vector5_right).sum())
-
-magic_vector5 = np.ones(6) * np.exp(1j * 150 / 180 * np.pi) / A * B - magic_vector5_right
-print("eq5prime numerically verified:", (d_1 * magic_vector5).sum())
-
-
-# this is the identity that prod01[0, 1] * - W / BIG  == prod01[0, 5] / MED:
-print("eq6: (", simplify_roots(expand(- Wsym * prod01[0, 1])), ") * C / A =", prod01[0, 5])
-# eq6: ( -W**2*p12 + W**2*p15 - W*p13 + W - p11*x + p14*x ) * C / A = W**2*p12 - W**2*p15 + W*p11*x - W*p14*x + p13 - 1
-
-magic_vector6_left  = np.array([ W,   - x, - W ** 2, - W,       x,   W ** 2])
-magic_vector6_right = np.array([-1, W * x,   W ** 2,   1, - W * x, - W ** 2])
-print("eq6 numerically verified:", (d_1 * magic_vector6_left).sum() * C / A - (d_1 * magic_vector6_right).sum())
-
-magic_vector6 = magic_vector6_left * C / A - magic_vector6_right
-print("magic_vector6", magic_vector6)
-print("eq6prime numerically verified:", (d_1 * magic_vector6).sum())
-
-
-# this is extracted from the raw empirical observation of D_1. it starts with 0, -120 degrees.
-magic_vector7 = np.array([- 1, W, 0, 0, 0, 0])
-print("eq7 numerically verified:", (d_1 * magic_vector7).sum())
-
-
-# this is extracted from the raw empirical observation of D_1. D_1[3] = 120+D_1[4], where D_1[4] ~ 7.355.
-magic_vector8 = np.array([0, 0, 0, -1, W, 0])
-print("eq8 numerically verified:", (d_1 * magic_vector8).sum())
-
-
-# according to the svd rank analysis, eq7 and eq8 are not equivalent to any of the rest
-# in isolation, but adding them to eqs eq1-eq6 does not increase the rank (it's still 4).
-# a maximum rank span is eq1, eq5, eq7, eq8.
-# eq5 is the tricky one with the magnitude ratio, but eqs 1-7-8 already give us
-# something nontrivial according to linsolve:
-# p12 = W*x/2 - W/2 + p14*(-W**2*x/2 + W**2/2) + p15
-# manually that's
-# p12 = (1 - x) / 2 * W**2 * (p14 - W**2) + p15
-# why is this even a phase? this is our first identity moving beyond the
-# form "element of prod12 is constant times another element" (eqs 1-6) or
-# from "element of D_1 is constant times another element" (eqs 7-8).
-
-p14, p15 = d_1[4:]
-p12supposedly = (1 - x) / 2 * W**2 * (p14 - W**2) + p15
-
-print("equation linsolve'd from eq1-7-8 is numerically verified:", d_1[2] - p12supposedly)
-
-
-
-# constraints = np.stack([magic_vector3, magic_vector6])
-# eq2 and eq4 exactly sum to zero symbolically.
-# eq3 and eq6 seem to be numerically redundant from the perspective of D_1,
-# (with empirical x, A, C substituted), but that can actually
-# make them valuable from the perspective of getting constraints
-# about x, A, C. not sure they are actually redundant, though. it's very imprecise.
-# the second three is always minus the first three, so we only consider the first three.
-def whats_up_with_eq3_vs_eq6():
-    magic_vector3 = np.array([(W ** 2 + 1) * x, (- W - 1), 2])
-    magic_vector6_left  = np.array([ W,   - x, - W ** 2])
-    magic_vector6_right = np.array([-1, W * x,   W ** 2])
-    magic_vector6 = magic_vector6_left * C / A - magic_vector6_right
-    print("magic_vector6 / magic_vector3", magic_vector6 / magic_vector3)
-    np.set_printoptions(precision=12, suppress=True, linewidth=100000)
-    print(np.abs(magic_vector6 / magic_vector3), angler(magic_vector6 / magic_vector3))
-
-
-print("linear constraints:")
-constraints = np.stack([magic_vector1, magic_vector2, magic_vector3, magic_vector5, magic_vector6, magic_vector7, magic_vector8])
-constraints = np.stack([magic_vector1, magic_vector5, magic_vector7, magic_vector8])
-
-# print(constraints)
-np.set_printoptions(precision=12, suppress=False, linewidth=100000)
-u, s, vh = np.linalg.svd(constraints)
-print(s)
-
-
-# TODO do the rest, there are a couple of hopefully nonredundant ones.
-# TODO do even the redundant ones, maybe they are nicer looking.
-
-
-
-magic1sym = Matrix([-Wsym, Wsym**2 * xvar, -2, Wsym, -Wsym**2 * xvar, 2]) # column vector
-print(left_phases_var @ magic1sym)
-
-magic2sym = Matrix([1 - Wsym, Wsym**2 - Wsym, 0, 1 - Wsym, Wsym**2 - Wsym, 0])
-print(left_phases_var @ magic2sym)
-
-magic3sym = Matrix([(Wsym ** 2 + 1) * xvar, (- Wsym - 1), 2, (- Wsym ** 2 - 1) * xvar, (Wsym + 1), -2])
-print(left_phases_var @ magic3sym)
-
-
-BperAvar = symbols('BperA')
-magic5rightsym = Matrix([1, Wsym, Wsym ** 2, 1, Wsym, Wsym ** 2])
-magic5sym = Matrix([1] * 6) * (1j/2 - sqrt(3) / 2) * BperAvar - magic5rightsym
-print(simplify(left_phases_var @ magic5sym))
-
-
-CperAvar = symbols('CperA')
-magic6leftsym = Matrix([ Wsym,   - xvar, - Wsym ** 2, - Wsym,    xvar,   Wsym ** 2])
-magic6rightsym = Matrix([-1, Wsym * xvar,   Wsym ** 2,   1, - Wsym * xvar, - Wsym ** 2])
-magic6sym = magic6leftsym * CperAvar - magic6rightsym
-
-# print(">>>", expand(magic6sym.subs(xvar, x).subs(CperAvar, C/A).subs(Wsym, -0.5 - 3 ** 0.5 / 2j)))
-
-
-magic7sym = Matrix([-1, Wsym, 0, 0, 0, 0])
-magic8sym = Matrix([0, 0, 0, -1, Wsym, 0])
-
-
-
-
-np.set_printoptions(precision=12, suppress=True, linewidth=100000)
-
-for i, magicsym in enumerate([magic1sym, magic2sym, magic3sym, None, magic5sym, magic6sym, magic7sym, magic8sym], 1):
-    if magicsym is None:
-        continue
-    print(f"verifying EQ{i}:", np.abs(sym_to_num(left_phases_var @ magicsym)))
-
+print("----")
 
 from sympy.solvers.solveset import linsolve
 
-p_var = tuple(sympy.symbols(f'p1{i}') for i in range(1, 6))
+p_var = tuple(sympy.symbols(f'p1{i}') for i in range(6))
 
-def apply(magicsym):
-    return (left_phases_var @ magicsym)[0]
-
-eq_system = [apply(magicsym) for magicsym in [magic1sym, magic2sym, magic3sym, magic5sym, magic6sym, magic7sym, magic8sym]]
-eq_system = [apply(magicsym) for magicsym in [magic1sym, magic2sym, magic5sym, magic7sym, magic8sym]]
-eq_system = [apply(magicsym) for magicsym in [magic2sym, magic5sym, magic7sym, magic8sym]]
-eq_system = [eq.subs(Wsym, Rational(- 1, 2) - 1j * sqrt(3) * Rational(1, 2)) for eq in eq_system]
-print(eq_system)
-
-print("=======")
-
-sols = linsolve(eq_system, p_var)
-
+sols = linsolve(eqs, p_var)
 sols = list(sols)[0]
-sols = [expand(v).factor(BperAvar) for v in sols]
 for i, v in enumerate(sols):
-    print(i + 1, v)
+    print("====")
+    print(i, v)
+    # print(i, enforce_norm_one(v, [xvar]))
