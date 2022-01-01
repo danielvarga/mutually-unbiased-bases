@@ -178,7 +178,7 @@ cmap = plt.cm.viridis
 for i in range(1, m):
     for j in range(i, m):
         print(f"B{i}† B{j}")
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 10))
         patches = []
         colors = []
         for row in range(n):
@@ -218,12 +218,15 @@ for i in range(1, m):
         custom_lines = [Line2D([0], [0], color=cmap(A), lw=4),
                 Line2D([0], [0], color=cmap(B), lw=4),
                 Line2D([0], [0], color=cmap(C), lw=4)]
-        ax.legend(custom_lines, [f"a = {A}", f"b = {B}", f"c = {C}"])
+        # ax.legend(custom_lines, [f"a = {A}", f"b = {B}", f"c = {C}"])
 
-        fig.colorbar(p)
+        # fig.colorbar(p)
 
         plt.title(r"$B_%d^\dag B_%d$" % (i, j))
-        plt.show()
+        plt.xlim((-0.5, 5.5))
+        plt.ylim((-0.5, 5.5))
+        # plt.show()
+        plt.savefig(f'prod{i}{j}.png')
 
 exit()
 

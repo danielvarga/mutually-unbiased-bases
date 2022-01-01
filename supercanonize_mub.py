@@ -203,7 +203,12 @@ def short_dump_mub(factorized_mub):
     print(angler(factorized_mub[1][0]), perm1, angler(factorized_mub[2][0]), perm2)
 
 
+def angler(x):
+    return np.angle(x) * 180 / np.pi
+
+
 short_dump_mub(factorized_mub)
+
 
 mub = []
 for i in range(3):
@@ -232,9 +237,35 @@ def loss_function(mub):
     return sum(terms)
 
 
-def angler(x):
-    return np.angle(x) * 180 / np.pi
+# (B_i^dag B_j)_kl =.
+def prod_elem(i, j, k, l):
+    aprod = np.conjugate(mub[i].T) @ mub[j]
+    return aprod[k, l]
 
+
+def product_angles():
+    normalized = []
+    for i in (0, ):
+        for j in (1, 2):
+            for k in (4, ):
+                for l in range(6):
+                    p = prod_elem(i, j, k, l) / 6
+                    rounded_abs = (np.abs(p) * 1000).astype(int)
+                    assert rounded_abs in (355, 385, 425)
+                    rounded_abs /= 1000
+                    angle = np.angle(p)
+                    # 10^8 needed to avoid spurious coincidences because of rounding,
+                    # but to still avoid spurious differences because of precision errors.
+                    rounded_angle = int(angle * 10 ** 8)
+                    rounded_angle /= 10 ** 8
+                    rounded_angle *= 180 / np.pi
+                    normalized.append((i, j, k, l, rounded_abs, rounded_angle))
+                    print(i, j, k, l, rounded_abs, rounded_angle)
+    normalized = np.array(normalized)
+    return normalized
+
+
+# product_angles() ; exit()
 
 def deconstruct_product(prod):
     sub0 = prod[:2, :2].copy()
@@ -278,9 +309,17 @@ def dump_products(mub):
 
 # dump_products(mub)
 
+
+# also scale it back to be actually unitary.
+def put_back_id(mub):
+    return np.concatenate([np.eye(6, dtype=np.complex128)[np.newaxis, ...], mub / 6 ** 0.5])
+
+
 loss = loss_function(mub)
 print("loss", loss)
 
+np.save('tmp.npy', put_back_id(mub))
+print("normalized qMUB saved into tmp.npy")
 
 import sympy
 from sympy import symbols, Matrix, Transpose, conjugate, expand, simplify, sqrt, Rational
@@ -467,13 +506,28 @@ symbolic_bases = create_symbolic_mub(factorized_mub)
 for i in range(2):
     assert np.allclose(sym_to_num(symbolic_bases[i]), mub[i])
 
+symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[0], conjugate(xvar))
+assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
+symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[1], -Wsym ** 2)
+assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
+symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[3], -Wsym * conjugate(xvar) * left_phases_var[4])
+assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
+symbolic_bases[1] = simplify_roots(enforce_norm_one(symbolic_bases[1], [xvar]))
+
+print("B_1", symbolic_bases[1])
+
+
 prod01sym = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
 prod01sym = simplify_roots(prod01sym)
+print("product", prod01sym)
 
 assert np.allclose(sym_to_num(prod01sym), np.conjugate(mub[0].T) @ mub[1])
 
 prod01reconstructed_sym = reconstruct_product(mub[0], mub[1])
+print("reconstruction", prod01reconstructed_sym)
+
 diff = prod01sym - prod01reconstructed_sym
+# print("product-reconstruction", diff)
 
 assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
 
@@ -489,6 +543,7 @@ diff = subs_roots(diff)
 
 assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
 
+
 '''
 for i in range(6):
     for j in range(6):
@@ -496,30 +551,38 @@ for i in range(6):
 '''
 
 
-def extract_directions(eq):
-    phases = [sympy.symbols(f'p1{i}') for i in range(6)]
+def extract_directions(eq, variables):
     bias = eq
-    for phase in phases:
-        bias = bias.subs(phase, 0)
-    return Matrix([sympy.diff(eq, v) for v in phases]), bias
+    for v in variables:
+        bias = bias.subs(v, 0)
+    return Matrix([sympy.diff(eq, v) for v in variables]), bias
 
 
+variables = [sympy.symbols(f'p1{i}') for i in range(6)]
+# the remaining variables after the substitutions above:
+variables = sympy.symbols('p12 p14 p15')
 directions = []
 biases = []
 for i in range(1):
-    for j in range(6):
-        direction, bias = extract_directions(diff[i, j])
+    for j in range(3):
+        direction, bias = extract_directions(diff[i, j], variables)
+        print(i,j,"=>", diff[i, j])
+        print(i,j,"=>", direction)
         directions.append(sym_to_num(direction))
         biases.append(sym_to_num(bias))
 directions = np.array(directions)
 biases = np.array(biases)
 
+np.set_printoptions(precision=12, suppress=False, linewidth=100000)
+u, s, vh = np.linalg.svd(directions)
+print("singular values:", s)
+
 # indeed, if you know the first row of the product,
 # that already determines D_1.
 # that's true for any other row or column, by the way.
 # or even any contiguous 2x3 or 3x2 submatrix.
-d_1_predictions = np.linalg.solve(directions, -biases)
-assert np.allclose(d_1_predictions, d_1, atol=1e-4)
+p12_p14_p15_predictions = np.linalg.solve(directions, -biases)
+assert np.allclose(p12_p14_p15_predictions, d_1[[2, 4, 5]], atol=1e-4)
 print("passed the test: D_1 can be reconstructed from these elements of the product")
 
 
