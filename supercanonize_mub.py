@@ -506,11 +506,17 @@ symbolic_bases = create_symbolic_mub(factorized_mub)
 for i in range(2):
     assert np.allclose(sym_to_num(symbolic_bases[i]), mub[i])
 
+# this is where we collect the D_1 elements written up in terms of A,B,C,x,W,WW.
+phase_solution = left_phases_var[:]
+
 symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[0], conjugate(xvar))
+phase_solution[0] = conjugate(xvar)
 assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
 symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[1], -Wsym ** 2)
+phase_solution[1] = -Wsym ** 2
 assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
 symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[3], -Wsym * conjugate(xvar) * left_phases_var[4])
+phase_solution[3] = -Wsym * conjugate(xvar) * left_phases_var[4]
 assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
 symbolic_bases[1] = simplify_roots(enforce_norm_one(symbolic_bases[1], [xvar]))
 
@@ -527,7 +533,6 @@ prod01reconstructed_sym = reconstruct_product(mub[0], mub[1])
 print("reconstruction", prod01reconstructed_sym)
 
 diff = prod01sym - prod01reconstructed_sym
-# print("product-reconstruction", diff)
 
 assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
 
@@ -558,30 +563,33 @@ def extract_directions(eq, variables):
     return Matrix([sympy.diff(eq, v) for v in variables]), bias
 
 
-variables = [sympy.symbols(f'p1{i}') for i in range(6)]
+# variables = [sympy.symbols(f'p1{i}') for i in range(6)]
 # the remaining variables after the substitutions above:
 variables = sympy.symbols('p12 p14 p15')
+
 directions = []
 biases = []
 for i in range(1):
     for j in range(3):
         direction, bias = extract_directions(diff[i, j], variables)
-        print(i,j,"=>", diff[i, j])
-        print(i,j,"=>", direction)
-        directions.append(sym_to_num(direction))
-        biases.append(sym_to_num(bias))
-directions = np.array(directions)
-biases = np.array(biases)
+        directions.append(direction)
+        biases.append(bias)
+# a python list of column vector sympy Matrices is not trivial to convert to a sympy Matrix:
+directions = Matrix([[coeff[0] for coeff in direction.tolist()] for direction in directions])
+biases = Matrix(biases)
+
+directions_num = sym_to_num(directions)
+biases_num = sym_to_num(biases)
 
 np.set_printoptions(precision=12, suppress=False, linewidth=100000)
-u, s, vh = np.linalg.svd(directions)
+u, s, vh = np.linalg.svd(directions_num)
 print("singular values:", s)
 
 # indeed, if you know the first row of the product,
 # that already determines D_1.
 # that's true for any other row or column, by the way.
 # or even any contiguous 2x3 or 3x2 submatrix.
-p12_p14_p15_predictions = np.linalg.solve(directions, -biases)
+p12_p14_p15_predictions = np.linalg.solve(directions_num, -biases_num)
 assert np.allclose(p12_p14_p15_predictions, d_1[[2, 4, 5]], atol=1e-4)
 print("passed the test: D_1 can be reconstructed from these elements of the product")
 
@@ -623,11 +631,24 @@ print("----")
 
 from sympy.solvers.solveset import linsolve
 
-p_var = tuple(sympy.symbols(f'p1{i}') for i in range(6))
 
-sols = linsolve(eqs, p_var)
-sols = list(sols)[0]
-for i, v in enumerate(sols):
-    print("====")
-    print(i, v)
-    # print(i, enforce_norm_one(v, [xvar]))
+p12_p14_p15_predictions_sym = linsolve((directions, -biases), variables)
+# take single element of FiniteSet:
+p12_p14_p15_predictions_sym = list(p12_p14_p15_predictions_sym)[0]
+
+assert np.allclose(sym_to_num(p12_p14_p15_predictions_sym), d_1[[2, 4, 5]], atol=1e-4)
+
+phase_solution[2] = p12_p14_p15_predictions_sym[0]
+phase_solution[4] = p12_p14_p15_predictions_sym[1]
+phase_solution[5] = p12_p14_p15_predictions_sym[2]
+# phase_solution[3] still has some p14 in it, let's get rid of it:
+phase_solution[3] = subs_roots(expand(phase_solution[3].subs(left_phases_var[4], phase_solution[4])))
+
+phase_solution = Matrix(phase_solution)
+
+assert np.allclose(sym_to_num(phase_solution), d_1, atol=1e-4)
+
+for i in range(6):
+    print(f"p1{i} =", phase_solution[i])
+
+print("congratulations! D_1 (hence B_1) completely written up in terms of A, B, C, alpha, delta, x.")
