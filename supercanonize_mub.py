@@ -641,14 +641,35 @@ assert np.allclose(sym_to_num(p12_p14_p15_predictions_sym), d_1[[2, 4, 5]], atol
 phase_solution[2] = p12_p14_p15_predictions_sym[0]
 phase_solution[4] = p12_p14_p15_predictions_sym[1]
 phase_solution[5] = p12_p14_p15_predictions_sym[2]
-# phase_solution[3] still has some p14 in it, let's get rid of it:
+phase_solution[1] = subs_roots(phase_solution[1])
+# phase_solution[3] still has some p14 in it, let's get rid of it. also W:
 phase_solution[3] = subs_roots(expand(phase_solution[3].subs(left_phases_var[4], phase_solution[4])))
+
+# turning a/c + b/c into (a+b)/c, much much shorter:
+for i in range(6):
+    phase_solution[i] = sympy.polys.rationaltools.together(phase_solution[i])
+    phase_solution[i] = sympy.polys.polytools.factor(phase_solution[i], gaussian=True)
+    # phase_solution[i] = sympy.polys.polytools.cancel(phase_solution[i])
 
 phase_solution = Matrix(phase_solution)
 
 assert np.allclose(sym_to_num(phase_solution), d_1, atol=1e-4)
 
+print("congratulations! D_1 (hence B_1) completely written up in terms of A, B, C, alpha, delta, x.")
+
 for i in range(6):
     print(f"p1{i} =", phase_solution[i])
 
-print("congratulations! D_1 (hence B_1) completely written up in terms of A, B, C, alpha, delta, x.")
+exit()
+
+B_0_sym = symbolic_bases[0]
+B_1_sym = symbolic_bases[1]
+for i in range(6):
+    B_1_sym = B_1_sym.subs(left_phases_var[i], phase_solution[i])
+
+
+assert np.allclose(sym_to_num(B_0_sym), mub[0], atol=1e-4)
+assert np.allclose(sym_to_num(B_1_sym), mub[1], atol=1e-4)
+
+print("B_1 and Dagger(B_0) @ B_1 are actually written up now.")
+print(sympy.polys.rationaltools.together(expand(subs_roots(Dagger(B_0_sym) @ B_1_sym))))

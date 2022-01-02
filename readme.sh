@@ -224,3 +224,21 @@ time ls optimum.npy normalized/*.npy | while read f ; do python true_reverse.py 
 # also another version where it's all F(a, a):
 time ls optimum.npy normalized/*.npy | while read f ; do python true_reverse.py $f ; done > very_canonized_mubs_faa
 
+###############################
+
+# we settled on understanding normalized/mub_10024.npy, which appears in very_canonized_mubs as:
+filename normalized/mub_10024.npy i 1 D_l [   0.             -164.537867687287 -137.32848899145    96.583606774521 -134.844255859977   -2.219205504693] P_l [0 5 1 3 4 2] x 55.118636906354006 y 0.0 P_r [1 3 5 0 2 4] D_r [0. 0. 0. 0. 0. 0.] distance 2.6592143434932648e-05
+filename normalized/mub_10024.npy i 2 D_l [ -55.118405380635  -61.064547336228 -168.565572093445  108.820307075025   -7.488938370591   57.780814212778] P_l [4 3 2 5 0 1] x 55.11840538063484 y 0.0 P_r [3 1 4 2 0 5] D_r [   0.              120.              175.118405380635  -64.881594619365   55.118405380635 -120.            ] distance 2.529484611193886e-05
+filename normalized/mub_10024.npy i 3 D_l [ 180.              -61.06433552798  -101.210254604058   51.294010227575 -103.607404283702   96.37275175272 ] P_l [3 2 4 0 1 5] x 55.11840538063479 y 0.0 P_r [3 2 0 4 5 1] D_r [   0. -180. -180. -180.   -0.    0.] distance 2.659214866395492e-05
+# the right phases and permutations are dropped,
+# we left-apply the action that moves the first base to F(a, a),
+# and the result is saved as ./mub_10024_supercanonized.npy
+# how to reproduce that?
+cat very_canonized_mubs | grep mub_10024 | python supercanonize_mub.py
+# -> saves the mub to tmp.npy
+mv tmp.npy mub_10024_supercanonized.npy
+
+
+# this only works when the code exits after dumping phase_solution:
+cat very_canonized_mubs | grep mub_10024 | python supercanonize_mub.py | awk 'f;/congratulations/{f=1}' > B_1_phase_equation
+cat B_1_phase_equation | sed "s/\*\*/^/g" | sed "s/conjugate(\([a-z]*\))/\\\bar{\1}/g" | sed "s/sqrt(\([a-z1-9]*\))/\\\sqrt{\1}/g" | sed "s/I/i/g" | sed "s/\.0//g" | sed "s/alpha/\\\alpha/g" | sed "s/delta/\\\delta/g" | sed "s/W/\\\omega/g" | sed "s/B/U/g" | sed "s/C/V/g" | sed "s/A/W/g" | sed "s/\*/ /g" | sed "s/^p1\(.\)/d_{2\1}/" | awk '{ print "$", $0, "$" ; print "" }' > B_1_phase_equation.tex
