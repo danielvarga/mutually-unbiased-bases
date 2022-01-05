@@ -322,7 +322,7 @@ np.save('tmp.npy', put_back_id(mub))
 print("normalized qMUB saved into tmp.npy")
 
 import sympy
-from sympy import symbols, Matrix, Transpose, conjugate, expand, simplify, sqrt, Rational
+from sympy import symbols, Matrix, Transpose, conjugate, expand, factor, cancel, nsimplify, simplify, sqrt, Rational
 from sympy.physics.quantum.dagger import Dagger
 from sympy.matrices.dense import matrix_multiply_elementwise
 
@@ -390,9 +390,9 @@ def create_basis(indx, factors):
 
 
 
-A = 0.42593834
-B = 0.35506058
-C = 0.38501704
+A = 0.42593834 # new name W
+B = 0.35506058 # new name U
+C = 0.38501704 # new name V
 D = 0.40824829
 numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 
@@ -565,18 +565,108 @@ def extract_directions(eq, variables):
 
 # variables = [sympy.symbols(f'p1{i}') for i in range(6)]
 # the remaining variables after the substitutions above:
-variables = sympy.symbols('p12 p14 p15')
+variables = sympy.symbols('p12 p14 p15 A B C')
+
+all_directions = []
+all_biases = []
+for i in range(6):
+    for j in range(6):
+        direction, bias = extract_directions(diff[i, j], variables)
+        all_directions.append(direction)
+        all_biases.append(bias)
+
+all_directions = Matrix([[coeff[0] for coeff in direction.tolist()] for direction in all_directions])
+all_biases = Matrix(all_biases)
+
+
+import matplotlib.pyplot as plt
+
+
+def show_points(points, title):
+    fig, ax = plt.subplots()
+    ax.scatter(points.real, points.imag)
+    partition = "ABCDED FAGEGC CDEDAB GEGCFA EDABCD GCFAGE".replace(" ", "")
+    if False:
+        for i, clss in enumerate(partition):
+            ax.annotate(" " * (i // 4) + f"{i}-{clss}", (points.real[i], points.imag[i]))
+    plt.title(title)
+    plt.show()
+
+
+def show_directions(directions, biases):
+    directions_num = sym_to_num(directions)
+    biases_num = sym_to_num(biases)
+    for i in range(6):
+        points = directions_num[:, i]
+        show_points(points, title=str(variables[i]))
+    points = biases_num
+    show_points(points, title="biases")
+
+
+# show_directions(all_directions, all_biases) ; exit()
+
+
+bases = [ #  BFE
+    (0, 0), # nicest of the 6 As, tells about A alpha
+    (3, 3), # nicest of the 6 Cs, tells about A alpha
+    (2, 2), # nicest of the 6 Es, tells about C alpha
+    (0, 1), # nicest of the 3 Bs, tells about B alpha delta
+    (1, 0), # nicest of the 3 Fs, tells about B alpha conj(delta)
+    (2, 3), # nicest of the 2x3 Ds, tells about A alpha delta
+    (3, 2), # nicest of the 2x3 Gs, tells about A alpha conj(delta)
+]
 
 directions = []
 biases = []
-for i in range(1):
-    for j in range(3):
+# note: if we keep the first row and the first element of the second row.
+# that's already rank 6, enough to determine all our variables.
+for (i, j) in bases:
         direction, bias = extract_directions(diff[i, j], variables)
         directions.append(direction)
         biases.append(bias)
+
 # a python list of column vector sympy Matrices is not trivial to convert to a sympy Matrix:
 directions = Matrix([[coeff[0] for coeff in direction.tolist()] for direction in directions])
 biases = Matrix(biases)
+
+# show_directions(directions, biases) ; exit()
+
+directions[5, :] /= - 1j ; biases[5] /= - 1j
+directions[6, :] /= 1j   ; biases[6] /= 1j
+
+directions = directions.subs(alphasym, nsimplify(-1) / 6)
+directions = expand(directions)
+biases = expand(biases)
+
+print("---")
+
+def dump_eq(name, eq):
+    print("\\begin{equation}")
+    print(name, "=", sympy.latex(nsimplify(eq)))
+    print("\\end{equation}")
+    print()
+
+
+dump_eq("A", directions)
+dump_eq("x", variables)
+dump_eq("b", biases)
+
+print("getting rid of the redundant directions[4], and postponing solving for U and V")
+directions = directions.col_del(5)
+directions = directions.col_del(4)
+
+directions = directions.row_del(4)
+directions = directions.row_del(3)
+directions = directions.row_del(2)
+biases = biases.row_del(4)
+biases = biases.row_del(3)
+biases = biases.row_del(2)
+variables = variables[:4]
+
+dump_eq("A", directions)
+dump_eq("x", variables)
+dump_eq("b", biases)
+
 
 directions_num = sym_to_num(directions)
 biases_num = sym_to_num(biases)
@@ -585,14 +675,11 @@ np.set_printoptions(precision=12, suppress=False, linewidth=100000)
 u, s, vh = np.linalg.svd(directions_num)
 print("singular values:", s)
 
-# indeed, if you know the first row of the product,
-# that already determines D_1.
-# that's true for any other row or column, by the way.
-# or even any contiguous 2x3 or 3x2 submatrix.
-p12_p14_p15_predictions = np.linalg.solve(directions_num, -biases_num)
-assert np.allclose(p12_p14_p15_predictions, d_1[[2, 4, 5]], atol=1e-4)
-print("passed the test: D_1 can be reconstructed from these elements of the product")
-
+predictions = np.linalg.lstsq(directions_num, -biases_num, rcond=None)[0]
+# expectations = np.array(d_1[[2, 4, 5]].tolist() + [A, B, C]) # this was before eliminating B, C them.
+expectations = np.array(d_1[[2, 4, 5]].tolist() + [A * alpha * (- 6)])
+assert np.allclose(predictions, expectations, atol=1e-4)
+print("passed the test: D_1, A, B, C can be reconstructed from these elements of the product")
 
 def create_and_verify_eq(formula):
     eq = subs_roots(formula)
@@ -604,43 +691,30 @@ def create_and_verify_eq(formula):
         print(eq, "should be numerically 0 but is", num)
     return eq
 
-
-eqA = create_and_verify_eq(left_phases_var[0] - conjugate(xvar))
-eqB = create_and_verify_eq(left_phases_var[1] + Wsym ** 2)
-# left_phases_var[3] * xvar * (- W ** 2) = left_phases_var[4]
-eqC = create_and_verify_eq(left_phases_var[4] - left_phases_var[3] * xvar * (- Wsym ** 2))
-
-# prod[0,2] = prod[0,0] + 60 degs
-eq1 = create_and_verify_eq(prod01sym[0, 2] + prod01sym[0, 0] * Wsym ** 2)
-
-# prod[1,1] = prod[0,0] + 180 degs
-eq2 = create_and_verify_eq(prod01sym[1, 1] + prod01sym[0, 0])
-
-# prod[1,5] = prod[0,0] + 120 degs
-eq3 = create_and_verify_eq(prod01sym[1, 5] - Wsym * prod01sym[0, 0])
-
-# that's the first beta equation:
-eq4 = create_and_verify_eq(prod01sym[1, 4] - Wsym ** 2 * prod01sym[1, 2])
-
-
-eqs = [eqA, eqB, eqC, eq1]
-
-print(eqs)
-
 print("----")
 
 from sympy.solvers.solveset import linsolve
 
 
-p12_p14_p15_predictions_sym = linsolve((directions, -biases), variables)
-# take single element of FiniteSet:
-p12_p14_p15_predictions_sym = list(p12_p14_p15_predictions_sym)[0]
+# predicting variables aka (p12, p14, p15, A, B, C)
+predictions_sym = linsolve((directions, -biases), variables)
+# take single element of FiniteSet. it's a tuple, but we convert it to list:
+predictions_sym = list(list(predictions_sym)[0])
 
-assert np.allclose(sym_to_num(p12_p14_p15_predictions_sym), d_1[[2, 4, 5]], atol=1e-4)
+for i in range(len(predictions_sym)):
+    predictions_sym[i] = simplify(factor(simplify(predictions_sym[i]), gaussian=True))
 
-phase_solution[2] = p12_p14_p15_predictions_sym[0]
-phase_solution[4] = p12_p14_p15_predictions_sym[1]
-phase_solution[5] = p12_p14_p15_predictions_sym[2]
+predictions_sym = Matrix(predictions_sym)
+
+assert np.allclose(sym_to_num(predictions_sym), expectations, atol=1e-4)
+
+for i in range(4):
+    dump_eq(str(variables[i]), predictions_sym[i])
+
+
+phase_solution[2] = predictions_sym[0]
+phase_solution[4] = predictions_sym[1]
+phase_solution[5] = predictions_sym[2]
 phase_solution[1] = subs_roots(phase_solution[1])
 # phase_solution[3] still has some p14 in it, let's get rid of it. also W:
 phase_solution[3] = subs_roots(expand(phase_solution[3].subs(left_phases_var[4], phase_solution[4])))
@@ -655,21 +729,16 @@ phase_solution = Matrix(phase_solution)
 
 assert np.allclose(sym_to_num(phase_solution), d_1, atol=1e-4)
 
-print("congratulations! D_1 (hence B_1) completely written up in terms of A, B, C, alpha, delta, x.")
+print("congratulations! D_1 (hence B_1) and A completely written up in terms of alpha, delta, x. B, C could be written up, if needed.")
 
 for i in range(6):
     print(f"p1{i} =", phase_solution[i])
 
-exit()
+print("A =", predictions_sym[3])
 
-B_0_sym = symbolic_bases[0]
-B_1_sym = symbolic_bases[1]
+# p1i in the code, d_{2 i+1} in the paper, sorry.
 for i in range(6):
-    B_1_sym = B_1_sym.subs(left_phases_var[i], phase_solution[i])
+    dump_eq("d_{2"+str(i+1)+"}", phase_solution[i])
 
-
-assert np.allclose(sym_to_num(B_0_sym), mub[0], atol=1e-4)
-assert np.allclose(sym_to_num(B_1_sym), mub[1], atol=1e-4)
-
-print("B_1 and Dagger(B_0) @ B_1 are actually written up now.")
-print(sympy.polys.rationaltools.together(expand(subs_roots(Dagger(B_0_sym) @ B_1_sym))))
+# A in the code, W in the paper, sorry.
+dump_eq("W", predictions_sym[3])
