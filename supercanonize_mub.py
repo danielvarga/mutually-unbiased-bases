@@ -732,14 +732,27 @@ assert np.allclose(sym_to_num(phase_solution), d_1, atol=1e-4)
 
 print("congratulations! D_1 (hence B_1) and A completely written up in terms of alpha, delta, x. B, C could be written up, if needed.")
 
-for i in range(6):
-    numer, denom = fraction(phase_solution[i])
-    print(f"d2{i+1}_numerator =", numer)
-    print(f"true_d2{i+1}_numerator =", sym_to_num(numer))
-    print(f"d2{i+1}_denominator =", denom)
-    print(f"true_d2{i+1}_denominator =", sym_to_num(denom))
 
-print("A =", predictions_sym[3])
+def dump_solutions_in_python():
+    for i in range(6):
+        numer, denom = fraction(phase_solution[i])
+        print(f"d2{i+1}_numerator =", numer)
+        print(f"d2{i+1}_denominator =", denom)
+    numer, denom = fraction(simplify(predictions_sym[3] / -6))
+    print(f"Walpha_numerator =", numer)
+    print(f"Walpha_denominator =", denom)
+
+    print ("# numerical values for debugging purposes:")
+    for i in range(6):
+        numer, denom = fraction(phase_solution[i])
+        print(f"true_d2{i+1}_numerator =", sym_to_num(numer))
+        print(f"true_d2{i+1}_denominator =", sym_to_num(denom))
+    numer, denom = fraction(simplify(predictions_sym[3] / -6))
+    print(f"true_Walpha_numerator =", sym_to_num(numer))
+    print(f"true_Walpha_denominator =", sym_to_num(denom))
+
+
+dump_solutions_in_python() ; exit()
 
 # p1i in the code, d_{2 i+1} in the paper, sorry.
 for i in range(6):
