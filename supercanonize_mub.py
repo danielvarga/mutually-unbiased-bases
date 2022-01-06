@@ -322,7 +322,8 @@ np.save('tmp.npy', put_back_id(mub))
 print("normalized qMUB saved into tmp.npy")
 
 import sympy
-from sympy import symbols, Matrix, Transpose, conjugate, expand, factor, cancel, nsimplify, simplify, sqrt, Rational
+from sympy import symbols, Matrix, Transpose, conjugate, sqrt, Rational
+from sympy import expand, factor, cancel, nsimplify, simplify, fraction
 from sympy.physics.quantum.dagger import Dagger
 from sympy.matrices.dense import matrix_multiply_elementwise
 
@@ -732,7 +733,11 @@ assert np.allclose(sym_to_num(phase_solution), d_1, atol=1e-4)
 print("congratulations! D_1 (hence B_1) and A completely written up in terms of alpha, delta, x. B, C could be written up, if needed.")
 
 for i in range(6):
-    print(f"p1{i} =", phase_solution[i])
+    numer, denom = fraction(phase_solution[i])
+    print(f"d2{i+1}_numerator =", numer)
+    print(f"true_d2{i+1}_numerator =", sym_to_num(numer))
+    print(f"d2{i+1}_denominator =", denom)
+    print(f"true_d2{i+1}_denominator =", sym_to_num(denom))
 
 print("A =", predictions_sym[3])
 
