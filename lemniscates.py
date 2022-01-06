@@ -6,7 +6,10 @@ n = 3600
 I = 1j
 
 true_delta = -0.12834049204788406+0.9917301639563593j
-true_x = np.exp(np.pi/180j * 55.118)
+true_alpha = 0.8078018037463457+0.589454193185654j
+true_x = np.exp(np.pi/180j * 55.118405380635004)
+true_d2_deg = np.array([-55.118405380635004, 60.00001971747099, 103.473320351059, 12.236700300504005, 127.35531748938601, -31.23708310199503])
+true_d2 = np.exp(np.pi/180j * true_d2_deg)
 W = 0.42593834
 
 x = true_x
@@ -34,43 +37,60 @@ d26_denominator = (2*sqrt(3)*delta + sqrt(3)*conjugate(delta) + 3*I*conjugate(de
 W_numerator = -2*I*(sqrt(3) + 3*I)*(conjugate(x) + 1)[np.newaxis]
 W_denominator = (2*sqrt(3)*delta + sqrt(3)*conjugate(delta) + 3*I*conjugate(delta) - 2 + 2*sqrt(3)*I)
 
-def show(v):
-    if len(v) > 1:
-        c = np.linspace(0, 1, len(v))
-    else:
-        c = "red"
-    plt.scatter(v.real, v.imag, c=c)
+def show(v, c=None):
+    if c is None:
+        if isinstance(v, np.complex128) or len(v) == 1:
+            c = "red"
+        else:
+            c = np.linspace(0, 1, len(v))
+    plt.scatter(v.real, v.imag, c=c, s=1)
 
 
 show(delta)
 show(d23_numerator)
 show(d23_denominator)
 show(d23_numerator / d23_denominator)
-plt.title("circle is $\\delta$, flat line is $d_{23}$ denominator, \nsloped line is $d_{23}$ numerator, $\infty$ is $d_{23}$ itself. \nx is set to its true value.")
+show(true_d2[2], c="red") # one-off
+plt.title('''circle is tested $\\delta$, red dot is true $\\delta$.
+flat line is $d_{23}$ denominator, sloped line is $d_{23}$ numerator,
+$\infty$ is $d_{23}$ itself. x is set to its true value.''')
+plt.gca().set_aspect('equal')
 plt.show()
 
 # show(delta)
 show(d25_numerator)
 show(d25_denominator)
 show(d25_numerator / d25_denominator)
-plt.title("$\\delta$ not shown, descending line is $d_{25}$ denominator, \nascending line is $d_{25}$ numerator, $d_{25}$ is C-shape, a subset of the unit circle. \nx is set to its true value.")
+show(true_d2[4], c="red") # one-off
+plt.title('''tested $\\delta$ not shown, red dot is true $\delta$.
+descending line is $d_{25}$ denominator, ascending line is $d_{25}$ numerator,
+$d_{25}$ is C-shape, a subset of the unit circle. x is set to its true value.''')
+plt.gca().set_aspect('equal')
 plt.show()
 
 show(delta)
 show(d26_numerator)
 show(d26_denominator)
 show(d26_numerator / d26_denominator)
-plt.title("circle is $\\delta$, gently ascending line is $d_{26}$ denominator, \nsteep line is $d_{26}$ numerator, $\infty$ is $d_{26}$ itself. \nx is set to its true value.")
+show(true_d2[5], c="red") # one-off
+plt.title('''circle is tested $\\delta$, red dot is true $\\delta$.
+gently ascending line is $d_{26}$ denominator, steep line is $d_{26}$ numerator,
+$\infty$ is $d_{26}$ itself. x is set to its true value.''')
+plt.gca().set_aspect('equal')
 plt.show()
 
 show(delta)
-show(W_numerator / -6)
+show(W_numerator / -6, c="green")
 show(W_denominator)
 show(W_numerator / W_denominator / -6)
-show(delta * W)
-plt.title('''circle is $\\delta$, line is $W\\alpha$ denominator, red dot is $W\\alpha$ numerator, C-shape is $W\\alpha$ itself.
-for reference, we also show the circle with radius $W$, that is where $W\\alpha$ is supposed to lie.
-x is set to its true value.''')
+show(delta * W, c="pink")
+show(np.linspace(0, true_delta * W, 1000), c="pink")
+show(true_delta * W, c="red")
+plt.title('''circle is $\\delta$, red dot is true $W\\alpha$.
+line is $W\\alpha$ denominator, green dot is $W\\alpha$ numerator, C-shape is $W\\alpha$ itself.
+for reference, we also show the circle with radius $W$ and the line with direction $\\alpha$ in pink.
+they intersect at the red dot. x is set to its true value.''')
+plt.gca().set_aspect('equal')
 plt.show()
 
 exit()
