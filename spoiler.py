@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import sympy
-from sympy import symbols, Matrix, Transpose, conjugate, sqrt, Rational
+from sympy import symbols, I, Matrix, Transpose, conjugate, sqrt, Rational
 from sympy import expand, factor, cancel, nsimplify, simplify, fraction
 from sympy.physics.quantum.dagger import Dagger
 from sympy.matrices.dense import matrix_multiply_elementwise
@@ -17,6 +17,13 @@ def simplify_roots(expr):
     e = expr.subs(conjugate(Wsym), Wsym ** 2)
     e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2).subs(Wsym ** 6, 1)
     return e
+
+
+def subs_roots(f):
+    f = f.subs(Wsym, - Rational(1, 2) + 1j * sqrt(3) * Rational(1, 2))
+    # f = f.subs(WWsym, Rational(1, 2) * 1j + sqrt(3) * Rational(1, 2))
+    f = expand(f)
+    return f
 
 
 def apply_elemwise(fn, matrix):
@@ -55,31 +62,109 @@ def symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_var, y_var):
     return sympy.diag(left_phases_var, unpack=True) @ left_pm.astype(int) @ fourier
 
 
-WWsym = sympy.symbols('WW') # 12th root of unity.
-magnitudes_sym = sympy.symbols('A B C')
-xvar, yvar = symbols('x y')
-alphasym, deltasym = sympy.symbols('alpha delta')
-left_phases_var = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row vector
+Wsym = sympy.symbols('W')
+xsym, tsym = sympy.symbols('x t')
 
 
-def sym_to_num(formula):
-    f = formula.subs(Wsym, W).subs(WWsym, np.exp(TIP/12))
-    f = f.subs(xvar, x)
-    # f = f.subs(BperAvar, B/A).subs(CperAvar, C/A)
-    f = f.subs(magnitudes_sym[0], A).subs(magnitudes_sym[1], B).subs(magnitudes_sym[2], C)
-    f = f.subs(alphasym, alpha).subs(deltasym, delta)
-    # TODO we don't substitute d_2.
-    for i in range(6):
-        f = f.subs(left_phases_var[i], d_1[i])
-    try:
-        a = np.array(f, dtype=np.complex128)
-    except:
-        print("failed to fully evaluate", formula)
-        print("still variables left in", f)
-        raise
-    return np.squeeze(a)
+Z = Matrix([[1, 0], [0, -1]])
+X = Matrix([[conjugate(xsym), 0], [0, xsym]])
+F2 = Matrix([[1, 1], [1, -1]])
+T = Matrix([[1, Wsym * tsym ** 2], [1, -Wsym * tsym ** 2]])
 
+def build(minis):
+    X = sympy.zeros(6, 6)
+    for i in range(3):
+        for j in range(3):
+            X[i*2: (i+1)*2, j*2: (j+1)*2] = minis[i][j]
+    return X
 
-alpha = 0.8078018037463457+0.589454193185654j
-delta = -0.12834049204788406+0.9917301639563593j
+ZERO = sympy.zeros(2, 2)
+X1 = build([
+    [X, ZERO, ZERO],
+    [ZERO,  I * conjugate(Wsym) * tsym * Z @ conjugate(X) ** 2, ZERO],
+    [ZERO, ZERO, X]])
+N1 = build([
+    [F2, F2, F2],
+    [F2, Wsym * F2, conjugate(Wsym) * F2],
+    [T, conjugate(Wsym) * T, Wsym * T]])
+M1 = X1 @ N1 / sqrt(6)
 
+N2 = build([
+    [F2, F2, F2],
+    [T, Wsym * T, conjugate(Wsym) * T],
+    [T, conjugate(Wsym) * T, Wsym * T]])
+M2 = N2 / sqrt(6)
+
+X3 = build([
+    [conjugate(X), ZERO, ZERO],
+    [ZERO, conjugate(Wsym) * conjugate(X), ZERO],
+    [ZERO, ZERO, - I * tsym * Z @ X ** 2]])
+N3 = build([
+    [F2, F2, F2],
+    [T, Wsym * T, conjugate(Wsym) * T],
+    [F2, conjugate(Wsym) * F2, Wsym * F2]])
+M3 = X3 @ N3 / sqrt(6)
+
+def dump(m):
+    return nsimplify(simplify(enforce_norm_one(subs_roots(m), [xsym, tsym])))
+
+print("self-products")
+print(dump(Dagger(M1) @ M1))
+print(dump(Dagger(M2) @ M2))
+print(dump(Dagger(M3) @ M3))
+
+'''
+print("determinants")
+print(dump(M1.det()), dump(M2.det()), dump(M3.det()))
+'''
+
+# formula (21)
+r = sympy.root(21 * sqrt(3) - 36, 3)
+
+# p_opt aka sqrt(p2_opt) = x.imag
+p2_opt = (3 + 16 * r - r ** 2) / 28 / r
+p_opt = sqrt(p2_opt)
+
+# q_opt = (t * W).real
+q2_opt = (1 - 2 * p2_opt) ** 2 / p2_opt
+q_opt = sqrt(q2_opt)
+
+p, q = sympy.symbols('p q')
+P = 8 * p ** 8 + 8 * q ** 2 * p ** 6 - 16 * q ** 3 * p ** 5 \
+    + 16 * q * p ** - 16 * q ** 2 * p ** 4 + 8 * q ** 3 * p ** 3 \
+    - 7 * p ** 4 - 14 * q * p ** 3 + 8 * q ** 2 * p ** 2 \
+    + 2 * p ** 2 + 4 * q * p
+print("p_opt numeric", p_opt.evalf())
+print("q_opt numeric", q_opt.evalf())
+
+print("P", P.subs(p, p_opt).subs(q, q_opt).evalf())
+
+x_opt = sqrt(1 - p2_opt) + I * sqrt(p2_opt)
+t_opt = (sqrt(q2_opt) + I * sqrt(1 - q2_opt)) / Wsym
+# evalf does not get rid of I, still a sympy formula
+x_opt_num = np.complex128(x_opt.evalf())
+t_opt_num = np.complex128(subs_roots(t_opt).evalf())
+
+def angler(x):
+    return np.angle(x) / np.pi * 180
+
+print("x_opt", x_opt_num, angler(x_opt_num))
+print("t_opt", t_opt_num, angler(t_opt_num))
+
+def sym_to_num(f):
+    return np.array(subs_roots(f.subs(xsym, x_opt).subs(tsym, t_opt)), dtype=np.complex128)
+
+M1_num = sym_to_num(M1)
+M2_num = sym_to_num(M2)
+M3_num = sym_to_num(M3)
+
+MUB_num = np.stack([np.eye(6, dtype=np.complex128), M1_num, M2_num, M3_num])
+
+np.save("mub_spoiler.npy", MUB_num)
+
+exit()
+
+prod = Dagger(M1) @ M2
+
+magsquared = matrix_multiply_elementwise(prod, conjugate(prod))
+print("product magnitudes squared delta", dump(magsquared - sympy.ones(6, 6) * magsquared[0, 1]))
