@@ -126,27 +126,70 @@ p2_opt = (3 + 16 * r - r ** 2) / 28 / r
 p_opt = sqrt(p2_opt)
 
 # q_opt = (t * W).real
-q2_opt = (1 - 2 * p2_opt) ** 2 / p2_opt
-q_opt = sqrt(q2_opt)
+q_opt = (1 - 2 * p2_opt) / p_opt
+q2_opt = q_opt ** 2
 
 p, q = sympy.symbols('p q')
 P = 8 * p ** 8 + 8 * q ** 2 * p ** 6 - 16 * q ** 3 * p ** 5 \
-    + 16 * q * p ** - 16 * q ** 2 * p ** 4 + 8 * q ** 3 * p ** 3 \
+    + 16 * q * p ** 5 - 16 * q ** 2 * p ** 4 + 8 * q ** 3 * p ** 3 \
     - 7 * p ** 4 - 14 * q * p ** 3 + 8 * q ** 2 * p ** 2 \
     + 2 * p ** 2 + 4 * q * p
 print("p_opt numeric", p_opt.evalf())
 print("q_opt numeric", q_opt.evalf())
 
+opt = (71 - 12* (1-p_opt.evalf()**2)**2)/70
+print("OPTIMUM", opt)
+
 print("P", P.subs(p, p_opt).subs(q, q_opt).evalf())
 
 x_opt = sqrt(1 - p2_opt) + I * sqrt(p2_opt)
-t_opt = (sqrt(q2_opt) + I * sqrt(1 - q2_opt)) / Wsym
+t_opt = (sqrt(q2_opt) + I * sqrt(1 - q2_opt)) * Wsym
 # evalf does not get rid of I, still a sympy formula
 x_opt_num = np.complex128(x_opt.evalf())
 t_opt_num = np.complex128(subs_roots(t_opt).evalf())
 
+
+def our_closeness(a, b):
+    return np.sum(np.abs(a - b) ** 2)
+
+
+def their_closeness(a):
+    return np.sum((np.abs(a) ** 2 - 1/6) ** 2)
+
+
+# numpy code reimplementing the tf code search.py:loss_fn()
+def our_loss_function(mub):
+    terms = []
+    for u in mub:
+        prod = np.conjugate(u.T) @ u
+        assert np.allclose(prod, np.eye(6))
+
+    target = 1 / 6 ** 0.5
+    for i in range(3):
+        for j in range(i + 1, 3):
+            # / 6 because what we call basis is 6**2 times what search.py calls basis.
+            prod = np.conjugate(mub[i].T) @ mub[j]
+            terms.append(our_closeness(np.abs(prod), target))
+    return sum(terms)
+
+
+def their_loss_function(mub):
+    terms = []
+    for u in mub:
+        prod = np.conjugate(u.T) @ u
+        assert np.allclose(prod, np.eye(6))
+
+    for i in range(3):
+        for j in range(i + 1, 3):
+            # / 6 because what we call basis is 6**2 times what search.py calls basis.
+            prod = np.conjugate(mub[i].T) @ mub[j]
+            terms.append(their_closeness(prod))
+    return sum(terms) / 5 - 1
+
+
 def angler(x):
     return np.angle(x) / np.pi * 180
+
 
 print("x_opt", x_opt_num, angler(x_opt_num))
 print("t_opt", t_opt_num, angler(t_opt_num))
@@ -161,6 +204,14 @@ M3_num = sym_to_num(M3)
 MUB_num = np.stack([np.eye(6, dtype=np.complex128), M1_num, M2_num, M3_num])
 
 np.save("mub_spoiler.npy", MUB_num)
+
+print("our loss", our_loss_function(MUB_num[1:]))
+print("their loss", their_loss_function(MUB_num[1:]))
+
+np.set_printoptions(precision=12, suppress=True)
+print(np.abs(np.conjugate(MUB_num[1]) @ MUB_num[2]))
+print(np.abs(np.conjugate(MUB_num[2]) @ MUB_num[3]))
+print(np.abs(np.conjugate(MUB_num[3]) @ MUB_num[0]))
 
 exit()
 

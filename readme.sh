@@ -242,3 +242,23 @@ mv tmp.npy mub_10024_supercanonized.npy
 # this only works when the code exits after dumping phase_solution:
 cat very_canonized_mubs | grep mub_10024 | python supercanonize_mub.py | awk 'f;/congratulations/{f=1}' > B_1_phase_equation
 cat B_1_phase_equation | sed "s/\*\*/^/g" | sed "s/conjugate(\([a-z]*\))/\\\bar{\1}/g" | sed "s/sqrt(\([a-z1-9]*\))/\\\sqrt{\1}/g" | sed "s/I/i/g" | sed "s/\.0//g" | sed "s/alpha/\\\alpha/g" | sed "s/delta/\\\delta/g" | sed "s/W/\\\omega/g" | sed "s/B/U/g" | sed "s/C/V/g" | sed "s/A/W/g" | sed "s/\*/ /g" | sed "s/^p1\(.\)/d_{2\1}/" | awk '{ print "$", $0, "$" ; print "" }' > B_1_phase_equation.tex
+
+
+
+time cat very_canonized_mubs | cut -f2 -d' ' | uniq | while read f ; do cat very_canonized_mubs | grep "$f" | python supercanonize_mub.py 2> /dev/null | grep delta ; done | tee deltas
+
+
+# dump_eigenvalues() codepath
+time cat very_canonized_mubs | cut -f2 -d' ' | uniq | while read f ; do cat very_canonized_mubs | grep "$f" | python hypercanonize_mub.py | awk 'f;/Okay/{f=1}' ; done > eigenvalues.txt
+
+# eigenvalues that are not 6th roots of unity:
+# (sorry everyone i feel bad about the grep.)
+less eigenvalues.txt | grep -v "eigvals.*120" | grep -v "eigvals.*180" | less
+
+# sorry everyone i feel terrible now.
+eigenvalues.txt | grep -v "eigvals.*120" | grep -v "eigvals.*180" | tr -d '[]' | awk '{ print int($6),int($7),int($8),int($9),int($10),int($11) }' | sort | uniq -c | sort -nr
+  19 -146 -112 -33 33 112 146
+   8 -146 -67 -33 33 67 146
+   6 -153 -86 -52 26 93 172
+   2 -172 -93 -26 52 86 153
+   1 -127 -93 -26 7 86 153
