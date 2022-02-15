@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import sympy
-from sympy import symbols, I, Matrix, Transpose, conjugate, sqrt, Rational
-from sympy import expand, factor, cancel, nsimplify, simplify, fraction
+from sympy import symbols, I, Matrix, Transpose, conjugate, sqrt, Rational, ones
+from sympy import expand, factor, cancel, nsimplify, simplify, fraction, lambdify
 from sympy.physics.quantum.dagger import Dagger
 from sympy.matrices.dense import matrix_multiply_elementwise
 
@@ -15,7 +15,8 @@ Wsym = symbols('W')
 
 def simplify_roots(expr):
     e = expr.subs(conjugate(Wsym), Wsym ** 2)
-    e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2).subs(Wsym ** 6, 1)
+    e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2)
+    e = e.subs(Wsym ** 6, 1).subs(Wsym ** 7, Wsym).subs(Wsym ** 8, Wsym ** 2).subs(Wsym ** 9, 1)
     return e
 
 
@@ -116,7 +117,33 @@ def sym_to_num(f):
     return np.array(subs_roots(f).subs(tsym, dummy_t).subs(xsym, dummy_x)).astype(np.complex128)
 
 
-# print(sym_to_num(6 * matrix_multiply_elementwise(M1, conjugate(M1))))
+def loss_fn(a, b):
+    ones6 = ones(6, 1)
+    ones66 = ones(6, 6)
+    prod = enforce_norm_one(simplify_roots(Dagger(a) @ b), [tsym, xsym])
+    mat = matrix_multiply_elementwise(prod, conjugate(prod)) - ones66 / 6
+    mat = enforce_norm_one(simplify_roots(mat), [tsym, xsym])
+    mat2 = matrix_multiply_elementwise(mat, mat)
+    mat2 = enforce_norm_one(simplify_roots(expand(mat2)), [tsym, xsym])
+    loss = 1 - (Dagger(ones6) @ mat2 @ ones6)[0, 0] / 5 # Raynal formula (2)
+    loss = enforce_norm_one(simplify_roots(expand(loss)), [tsym, xsym])
+    return loss
+
+
+loss = loss_fn(M1, M2)
+# loss = loss_fn(N1 / sqrt(6), N2 / sqrt(6))
+print(sym_to_num(loss))
+
+
+mapper = lambdify([xsym, tsym], subs_roots(loss), "numpy")
+circle = np.exp(np.pi * 2j * np.linspace(0, 1, 90))
+torus_x, torus_delta = np.meshgrid(circle, circle)
+grid = mapper(torus_x, torus_delta)
+# TODO this it supposed to be 0 and it's not.
+plt.imshow(np.imag(grid))
+plt.show()
+
+exit()
 
 
 M1_num = sym_to_num(M1)
