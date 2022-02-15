@@ -108,22 +108,33 @@ M3 = X3 @ N3 / sqrt(6)
 def dump(m):
     return nsimplify(simplify(enforce_norm_one(subs_roots(m), [xsym, tsym])))
 
-dummy_t = np.exp(np.pi/180 * 1j * 14) # 14 degrees
-N1_num = np.array(subs_roots(N1).subs(tsym, dummy_t)).astype(np.complex128)
-N2_num = np.array(subs_roots(N2).subs(tsym, dummy_t)).astype(np.complex128)
-N3_num = np.array(subs_roots(N3).subs(tsym, dummy_t)).astype(np.complex128)
+dummy_t = np.exp(np.pi/180 * 1j * 14)
+dummy_x = np.exp(np.pi/180 * 1j * 17)
 
-SQ = np.sqrt(6)
-EYE = np.eye(6, dtype=np.complex128)
-a = np.stack([EYE, N1_num / SQ, N2_num / SQ, N3_num / SQ])
+
+def sym_to_num(f):
+    return np.array(subs_roots(f).subs(tsym, dummy_t).subs(xsym, dummy_x)).astype(np.complex128)
+
+
+# print(sym_to_num(6 * matrix_multiply_elementwise(M1, conjugate(M1))))
+
+
+M1_num = sym_to_num(M1)
+M2_num = sym_to_num(M2)
+M3_num = sym_to_num(M3)
+
+EYE_num = np.eye(6, dtype=np.complex128)
+a = np.stack([EYE_num, M1_num, M2_num, M3_num])
 
 np.set_printoptions(precision=3, suppress=True)
 
 for i in range(4):
     prod = np.conjugate(a[i].T) @ a[i]
-    assert np.allclose(prod, EYE)
+    # print(i, i, prod)
+    assert np.allclose(prod, EYE_num)
     for j in range(i + 1, 4):
         prod = np.conjugate(a[i].T) @ a[j]
+        # print(i, j, np.abs(prod))
         if i == 0:
             assert np.allclose(np.abs(prod) ** 2, 1 / 6)
         else:
@@ -134,8 +145,6 @@ np.save('spoiler.npy', a)
 
 def angler(x):
     return np.angle(x) * 180 / np.pi
-
-print(angler(a[1]))
 
 # print(repr(np.array(subs_roots(N1).subs(tsym, dummy_t)).astype(np.complex128)))
 exit()
