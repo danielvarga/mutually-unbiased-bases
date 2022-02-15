@@ -58,7 +58,7 @@ def transform(b1, b2):
     return bestp1, bestp2, bestdist
 
 
-def the_true_decomposition(b_orig):
+def the_true_decomposition(b_orig, set_first, set_second):
     b = b_orig.copy()
     assert np.allclose(np.abs(b), np.ones_like(b)), "b should be sqrt(6) times a Hadamard basis."
     d_left1 = b[:, 0].copy()
@@ -89,9 +89,11 @@ def the_true_decomposition(b_orig):
 
     if x.imag < 0:
         x = np.conjugate(x)
-    y = 1.0
+    assert set_first or set_second, "set at least one of them"
+    first = x if set_first else 1
+    second = x if set_second else 1
 
-    candidate_basis = canonical_fourier(x, y)
+    candidate_basis = canonical_fourier(first, second)
     p1, p2, dist = transform(candidate_basis, b)
     b_reconstruct2 = candidate_basis[p1, :]
     b_reconstruct2 = b_reconstruct2[:, p2]
@@ -111,7 +113,7 @@ def the_true_decomposition(b_orig):
     d_right = np.diag(d_right2) @ np.diag(d_right1)
     b_reconstruct4 = d_left @ p_left @ candidate_basis @ p_right @ d_right
     assert np.allclose(b_orig, b_reconstruct4) # b_orig now!
-    return d_left, p_left, x, y, p_right, d_right, dist
+    return d_left, p_left, first, second, p_right, d_right, dist
 
 
 def phase_to_deg(x):
@@ -121,8 +123,19 @@ def phase_to_deg(x):
 np.set_printoptions(precision=12, suppress=True, linewidth=100000)
 
 
+raynal_style = False
 for i in range(1, 4):
-    d_left, p_left, x, y, p_right, d_right, dist = the_true_decomposition(a[i])
+    if raynal_style:
+        if i == 1:
+            set_first, set_second = False, True
+        elif i == 2:
+            set_first, set_second = True, True
+        elif i == 3:
+            set_first, set_second = True, False
+    else:
+        set_first, set_second = True, False
+
+    d_left, p_left, x, y, p_right, d_right, dist = the_true_decomposition(a[i], set_first, set_second)
     d_l = phase_to_deg(np.diag(d_left))
     d_r = phase_to_deg(np.diag(d_right))
     p_l = np.argmax(p_left, axis=0) # permutation of rows, but not here.
