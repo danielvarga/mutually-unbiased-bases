@@ -2,8 +2,13 @@
 # code based on question
 # https://stackoverflow.com/questions/64821151/notfounderror-when-using-a-tensorflow-optimizer-on-complex-variables-on-a-gpu
 
+import sys
 import tensorflow as tf
 import numpy as np
+
+
+run_id = int(sys.argv[1])
+tf.random.set_seed(run_id)
 
 
 n = 6
@@ -53,29 +58,33 @@ def canonical_fourier_fn(x, y):
     return m * fourier_base # elementwise_mul
 
 
-# x = np.complex128(0.5718790679708813+0.8203379374481935j)
-xs = np.complex128(np.exp(1.009j))
+# x = np.complex128(0.5718790679708813+0.8203379374481935j) # ours
+# xs = np.complex128(np.exp(1.009j)) # nayral
 
 SQ = np.sqrt(6)
 identity = tf.eye(n, dtype=tf.complex128)
 
 
-dmat_r = tf.random.uniform([2, 6], dtype=tf.float64)
-dmat_i = tf.random.uniform([2, 6], dtype=tf.float64)
-dmat = 2 * tf.complex(dmat_r, dmat_i) - 1
-ds = tf.Variable(dmat, trainable=True)
+logds_init = tf.random.uniform([2, 6], dtype=tf.float64)
+logds = tf.Variable(logds_init, trainable=True)
 
-xmat_r = tf.random.uniform([6], dtype=tf.float64)
-xmat_i = tf.random.uniform([6], dtype=tf.float64)
-xmat = 2 * tf.complex(xmat_r, xmat_i) - 1
-xs = tf.Variable(xmat, trainable=True)
+logxs_init = tf.random.uniform([6], dtype=tf.float64)
+logxs = tf.Variable(logxs_init, trainable=True)
 
+variables = [logxs, logds]
 
 def closeness(a, b):
     return tf.reduce_sum(tf.abs(a - b) ** 2)
 
 
-def mub_fn(xs, ds):
+def phase_fn(logxs, logds):
+    xs = tf.exp(tf.complex(0 * logxs, logxs) * 2 * np.pi)
+    ds = tf.exp(tf.complex(0 * logds, logds) * 2 * np.pi)
+    return xs, ds
+
+
+def mub_fn(logxs, logds):
+    xs, ds = phase_fn(logxs, logds)
     N1 = canonical_fourier_fn(xs[0], xs[1])
     N2 = canonical_fourier_fn(xs[2], xs[3])
     N3 = canonical_fourier_fn(xs[4], xs[5])
@@ -101,30 +110,24 @@ def loss_fn(mub):
             terms.append(closeness(tf.abs(prod), target))
     return sum(terms)
 
-opt = tf.keras.optimizers.SGD(learning_rate=0.05)
+opt = tf.keras.optimizers.SGD(learning_rate=0.002)
 
-for iteration in range(3000):
+for iteration in range(1000):
     with tf.GradientTape() as tape:
-        mub = mub_fn(xs, ds)
+        mub = mub_fn(logxs, logds)
         loss = loss_fn(mub)
-    grads = tape.gradient(loss, [xs, ds])
-    opt.apply_gradients(zip(grads, [xs, ds]))
+    grads = tape.gradient(loss, variables)
+    opt.apply_gradients(zip(grads, variables))
     if iteration % 100 == 0:
         print(iteration, loss.numpy())
 
 
-mub = mub_fn(xs, ds)
+mub = mub_fn(logxs, logds)
 np.save("mub.npy", mub.numpy())
 
-print("abs", np.abs(xs.numpy()), np.abs(ds.numpy()))
 
-
-def angler(x):
-    return np.angle(x) * 180 / np.pi
-
-
-print("x angles", angler(xs.numpy()))
-print("d angles", angler(ds.numpy()))
+print("x angles", logxs.numpy() * 360)
+print("d angles", logds.numpy() * 360)
 
 u0 = mub[1].numpy()
 u1 = mub[2].numpy()
