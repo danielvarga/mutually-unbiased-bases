@@ -59,7 +59,23 @@ def canonical_fourier_fn(x, y):
 
 
 # x = np.complex128(0.5718790679708813+0.8203379374481935j) # ours
-# xs = np.complex128(np.exp(1.009j)) # nayral
+# xs = np.complex128(np.exp(1.009j)) # raynal
+
+optimal_logxs = tf.constant([124.88147886 / 360]) # taken from our run, 180-55.11852114
+'''
+x angles [124.88147886]
+d angles [[180.73366437 308.0888661  104.20720639  68.0888661   60.73366437
+  149.49680294]
+ [ 48.02372117 324.14206146  48.02372117 160.66851944   9.43165801
+  160.66851944]]
+
+that's
+d angles [[180.73366437 308.0888661  104.20720639  d[0, 1]-240   d[0, 0]-120
+  149.49680294]
+ [ 48.02372117 324.14206146  d[1, 0] 160.66851944   9.43165801 d[1, 3]]]
+
+'''
+
 
 SQ = np.sqrt(6)
 identity = tf.eye(n, dtype=tf.complex128)
@@ -85,9 +101,18 @@ def phase_fn(logxs, logds):
 
 def mub_fn(logxs, logds):
     xs, ds = phase_fn(logxs, logds)
-    N1 = canonical_fourier_fn(xs[0], xs[1])
-    N2 = canonical_fourier_fn(xs[2], xs[3])
-    N3 = canonical_fourier_fn(xs[4], xs[5])
+    one_param = False
+    if one_param:
+        # worked with random seed 13
+        N1 = canonical_fourier_fn(xs[0], 1)
+        N2 = canonical_fourier_fn(xs[0], xs[0])
+        N3 = canonical_fourier_fn(1, xs[0])
+    else:
+        # worked with random seed 1
+        N1 = canonical_fourier_fn(xs[0], xs[1])
+        N2 = canonical_fourier_fn(xs[2], xs[3])
+        N3 = canonical_fourier_fn(xs[4], xs[5])
+
     D_a = tf.linalg.diag(ds[0])
     D_b = tf.linalg.diag(ds[1])
     M1 = D_a @ N1 / SQ
@@ -112,6 +137,8 @@ def loss_fn(mub):
 
 opt = tf.keras.optimizers.SGD(learning_rate=0.002)
 
+last_seen_loss = 100
+
 for iteration in range(1000):
     with tf.GradientTape() as tape:
         mub = mub_fn(logxs, logds)
@@ -120,12 +147,17 @@ for iteration in range(1000):
     opt.apply_gradients(zip(grads, variables))
     if iteration % 100 == 0:
         print(iteration, loss.numpy())
+        if loss.numpy() >= last_seen_loss - 0.01 and last_seen_loss > 0.1:
+            print("terminating, not promising")
+            exit()
+        last_seen_loss = loss.numpy()
 
 
 mub = mub_fn(logxs, logds)
 np.save("mub.npy", mub.numpy())
 
 
+print("check out the current parametrization, these numbers might be ignored:")
 print("x angles", logxs.numpy() * 360)
 print("d angles", logds.numpy() * 360)
 
