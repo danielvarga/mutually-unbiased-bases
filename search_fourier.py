@@ -46,8 +46,8 @@ def canonical_fourier(x, y):
 fourier_base = tf.constant(canonical_fourier(1, 1))
 
 def canonical_fourier_fn(x, y):
-    xxx = tf.stack([1, x, 1, x, 1, x], axis=0)
-    yyy = tf.stack([1, y, 1, y, 1, y], axis=0)
+    xxx = tf.cast(tf.stack([1, x, 1, x, 1, x], axis=0), dtype=np.complex128)
+    yyy = tf.cast(tf.stack([1, y, 1, y, 1, y], axis=0), dtype=np.complex128)
     ooo = tf.ones([6], dtype=np.complex128)
     m = tf.stack([ooo, xxx, yyy, ooo, xxx, yyy], axis=0)
     return m * fourier_base # elementwise_mul
