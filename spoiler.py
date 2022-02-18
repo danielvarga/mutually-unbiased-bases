@@ -88,6 +88,7 @@ N1 = build([
     [F2, F2, F2],
     [F2, Wsym * F2, conjugate(Wsym) * F2],
     [T, conjugate(Wsym) * T, Wsym * T]])
+
 M1 = X1 @ N1 / sqrt(6)
 
 N2 = build([
@@ -106,15 +107,27 @@ N3 = build([
     [F2, conjugate(Wsym) * F2, Wsym * F2]])
 M3 = X3 @ N3 / sqrt(6)
 
+
 def dump(m):
     return nsimplify(simplify(enforce_norm_one(subs_roots(m), [xsym, tsym])))
 
-dummy_t = np.exp(np.pi/180 * 1j * 14)
-dummy_x = np.exp(np.pi/180 * 1j * 17)
+
+x_opt_num = np.exp(0.9852j)
+t_opt_num = np.exp(1.0094j)
 
 
 def sym_to_num(f):
-    return np.array(subs_roots(f).subs(tsym, dummy_t).subs(xsym, dummy_x)).astype(np.complex128)
+    return np.array(subs_roots(f).subs(tsym, t_opt_num).subs(xsym, x_opt_num)).astype(np.complex128)
+
+
+M1_num = sym_to_num(M1)
+M2_num = sym_to_num(M2)
+M3_num = sym_to_num(M3)
+
+np.set_printoptions(precision=3, suppress=True)
+
+print(np.abs(np.conjugate(M1_num.T) @ M1_num))
+print(np.abs(np.conjugate(M1_num.T) @ M2_num))
 
 
 def loss_fn(a, b):
@@ -130,25 +143,20 @@ def loss_fn(a, b):
     return loss
 
 
+'''
 loss = loss_fn(M1, M2)
 # loss = loss_fn(N1 / sqrt(6), N2 / sqrt(6))
 print(sym_to_num(loss))
 
-
 mapper = lambdify([xsym, tsym], subs_roots(loss), "numpy")
-circle = np.exp(np.pi * 2j * np.linspace(0, 1, 90))
-torus_x, torus_delta = np.meshgrid(circle, circle)
-grid = mapper(torus_x, torus_delta)
+circle = np.exp(1j * np.linspace(0, 2*np.pi, 90))
+torus_x, torus_t = np.meshgrid(circle, circle)
+grid = mapper(torus_x, torus_t)
 # TODO this it supposed to be 0 and it's not.
 plt.imshow(np.imag(grid))
 plt.show()
+'''
 
-exit()
-
-
-M1_num = sym_to_num(M1)
-M2_num = sym_to_num(M2)
-M3_num = sym_to_num(M3)
 
 EYE_num = np.eye(6, dtype=np.complex128)
 a = np.stack([EYE_num, M1_num, M2_num, M3_num])
@@ -174,7 +182,6 @@ def angler(x):
     return np.angle(x) * 180 / np.pi
 
 # print(repr(np.array(subs_roots(N1).subs(tsym, dummy_t)).astype(np.complex128)))
-exit()
 
 print("self-products")
 print(dump(Dagger(M1) @ M1))
@@ -193,7 +200,7 @@ r = sympy.root(21 * sqrt(3) - 36, 3)
 p2_opt = (3 + 16 * r - r ** 2) / 28 / r
 p_opt = sqrt(p2_opt)
 
-# q_opt = (t * W).real
+# q_opt = (t * -conj(W)).real
 q_opt = (1 - 2 * p2_opt) / p_opt
 q2_opt = q_opt ** 2
 
@@ -202,19 +209,54 @@ P = 8 * p ** 8 + 8 * q ** 2 * p ** 6 - 16 * q ** 3 * p ** 5 \
     + 16 * q * p ** 5 - 16 * q ** 2 * p ** 4 + 8 * q ** 3 * p ** 3 \
     - 7 * p ** 4 - 14 * q * p ** 3 + 8 * q ** 2 * p ** 2 \
     + 2 * p ** 2 + 4 * q * p
-print("p_opt numeric", p_opt.evalf())
+print("r numeric", r.evalf())
+assert np.isclose(float(r), 0.7199, atol=1e-4)
+print("p_opt ** 2 numeric", p_opt.evalf() ** 2, "p_opt aka sin(theta_x^opt) numeric", p_opt.evalf())
+assert np.isclose(float(p_opt) ** 2, 0.6946, atol=1e-4)
+
+eq20 = 112 * p_opt ** 6 - 192 * p_opt ** 4 + 111 * p_opt ** 2 -22
+print("equation (20)", eq20, "=", eq20.evalf())
+assert np.isclose(float(eq20), 0, atol=1e-10)
+
 print("q_opt numeric", q_opt.evalf())
 
-opt = (71 - 12* (1-p_opt.evalf()**2)**2)/70
-print("OPTIMUM", opt)
+opt = (71 - 12* (1-p2_opt)**2) / 70
+print("OPTIMUM", opt.evalf())
+assert np.isclose(float(opt), 0.9983, atol=1e-4)
 
-print("P", P.subs(p, p_opt).subs(q, q_opt).evalf())
+dPdp = sympy.diff(P, p).subs(p, p_opt).subs(q, q_opt)
+print("dP(p, q)/dp numeric", dPdp.evalf())
+assert np.isclose(float(dPdp), 0)
+dPdq = sympy.diff(P, q).subs(p, p_opt).subs(q, q_opt)
+print("dP(p, q)/dq numeric", dPdq.evalf())
+assert np.isclose(float(dPdq), 0)
+
 
 x_opt = sqrt(1 - p2_opt) + I * sqrt(p2_opt)
-t_opt = (sqrt(q2_opt) + I * sqrt(1 - q2_opt)) * Wsym
-# evalf does not get rid of I, still a sympy formula
-x_opt_num = np.complex128(x_opt.evalf())
-t_opt_num = np.complex128(subs_roots(t_opt).evalf())
+print("x_opt", x_opt.evalf(), "~", x_opt_num)
+
+theta_t_opt_careful = sympy.acos(q_opt) - sympy.pi / 3
+t_opt_careful = sympy.exp(I * theta_t_opt_careful)
+
+t_opt = - Wsym * (q_opt + I * sqrt(1 - q2_opt))
+print("t_opt_careful", subs_roots(t_opt_careful).evalf(), "t_opt", subs_roots(t_opt).evalf(), "~", t_opt_num)
+assert np.isclose(np.complex128(subs_roots(t_opt / t_opt_careful)), 1)
+
+print("t_opt", subs_roots(t_opt.evalf()), "~", t_opt_num)
+
+
+# updating the numeric values from the 4 significant digit versions to the 15 digit versions:
+x_opt_num = np.complex128(x_opt)
+t_opt_num = np.complex128(subs_roots(t_opt))
+
+M1_num = sym_to_num(M1)
+M2_num = sym_to_num(M2)
+M3_num = sym_to_num(M3)
+
+prod12 = subs_roots((Dagger(M1) @ M2).subs(xsym, x_opt).subs(tsym, t_opt))
+print(np.abs(np.array(prod12).astype(np.complex128)))
+
+exit()
 
 
 def our_closeness(a, b):
