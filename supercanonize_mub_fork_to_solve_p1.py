@@ -626,19 +626,46 @@ def extract_directions(eq, variables):
     return Matrix([sympy.diff(eq, v) for v in variables]), bias
 
 
+positions01 = [ #  BFE
+    (0, 0), # nicest of the 6 As, tells about A alpha
+    (3, 3), # nicest of the 6 Cs, tells about A alpha
+#    (2, 2), # nicest of the 6 Es, tells about C alpha
+#    (0, 1), # nicest of the 3 Bs, tells about B alpha delta
+#    (1, 0), # nicest of the 3 Fs, tells about B alpha conj(delta)
+    (2, 3), # nicest of the 2x3 Ds, tells about A alpha delta
+    (3, 2), # nicest of the 2x3 Gs, tells about A alpha conj(delta)
+]
+
+# positions02 = [ (i, j) for i in range(6) for j in range(6) ]
+positions02 = [(0, 0), (0, 2), (0, 3), (0, 5), (1, 1), (1, 2)]
+
+
 # variables = [sympy.symbols(f'p1{i}') for i in range(6)]
 # the remaining variables after the substitutions above:
 variables1 = sympy.symbols('p12 p14 p15 A')
-variables2 = sympy.symbols('p23 p24 p25 A B C')
-variables = variables1
-diff = diff01
-alphasym = alpha01sym
+variables2 = sympy.symbols('p21 p23 p24 p25 A')
+
+# we cannot do both yet, but at least let's do either.
+which_to_solve = 2
+if which_to_solve == 1:
+    variables = variables1
+    diff = diff01
+    positions = positions01
+    alphasym = alpha01sym
+if which_to_solve == 2:
+    variables = variables2
+    diff = diff02
+    positions = positions02
+    alphasym = alpha02sym
+else:
+    assert False
 
 
-import matplotlib.pyplot as plt
 
 
 def show_points(points, title):
+    import matplotlib.pyplot as plt
+
     fig, ax = plt.subplots()
     ax.scatter(points.real, points.imag)
     partition = "ABCDED FAGEGC CDEDAB GEGCFA EDABCD GCFAGE".replace(" ", "")
@@ -662,15 +689,6 @@ def show_directions(directions, biases):
 # show_directions(all_directions, all_biases) ; exit()
 
 
-positions = [ #  BFE
-    (0, 0), # nicest of the 6 As, tells about A alpha
-    (3, 3), # nicest of the 6 Cs, tells about A alpha
-#    (2, 2), # nicest of the 6 Es, tells about C alpha
-#    (0, 1), # nicest of the 3 Bs, tells about B alpha delta
-#    (1, 0), # nicest of the 3 Fs, tells about B alpha conj(delta)
-    (2, 3), # nicest of the 2x3 Ds, tells about A alpha delta
-    (3, 2), # nicest of the 2x3 Gs, tells about A alpha conj(delta)
-]
 
 # positions = [(0, i) for i in range(4)] # + [(1, 0)]
 
@@ -721,13 +739,14 @@ def numerically_solve_linear_system(directions, biases):
     print("singular values:", s)
 
     predictions = np.linalg.lstsq(directions_num, -biases_num, rcond=None)[0]
-    # expectations = np.array(d_1[[2, 4, 5]].tolist() + [A, B, C]) # this was before eliminating B, C them.
-    expectations = np.array(d_1[[2, 4, 5]].tolist() + [A])
-    assert np.allclose(predictions, expectations, atol=1e-4)
-    print("passed the test: D_1, A, B, C can be reconstructed from these elements of the product")
-    return predictions, expectations
+    return predictions
 
-predictions, expectations = numerically_solve_linear_system(directions, biases)
+
+predictions = numerically_solve_linear_system(directions, biases)
+expectations = sym_to_num(Matrix(variables))
+print("!!!", predictions, expectations)
+assert np.allclose(predictions, expectations, atol=1e-4)
+print("passed the test:", Matrix(variables), "can be reconstructed from these elements of the product")
 
 
 def create_and_verify_eq(formula):
