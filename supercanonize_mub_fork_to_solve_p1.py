@@ -577,7 +577,7 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
             rotation = np.argmax(onehot.sum(axis=0))
             assert onehot[element_index, rotation] == 1
             normed_prod_sym[i, j] *= candidates_sym[element_index] * roots_sym[rotation]
-    # assert np.allclose(sym_to_num(alphasym * normed_prod_sym), normed)
+    assert np.allclose(alpha * sym_to_num(normed_prod_sym), normed, atol=1e-4)
 
     msquared = np.abs(prod) ** 2
     masks = [np.isclose(msquared, numerical_magic_constants[i]).astype(int) for i in range(3)]
@@ -587,9 +587,9 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
         for j in range(6):
             element_index = np.argmax(masks[:, i, j])
             magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
-    # assert np.allclose(sym_to_num(6 * magnitude_matrix_sym), np.abs(prod))
+    assert np.allclose(sym_to_num(6 * magnitude_matrix_sym), np.abs(prod), atol=1e-4)
     final_result = matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
-    # assert np.allclose(sym_to_num(6 * alphasym * final_result), prod)
+    assert np.allclose(alpha * sym_to_num(6 * final_result), prod, atol=1e-4)
     return final_result
 
 
