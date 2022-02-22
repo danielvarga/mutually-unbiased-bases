@@ -15,6 +15,13 @@ WW = np.exp(TIP / 12)
 BOARD = [(i, j) for i in range(6) for j in range(6)]
 
 
+A = 0.42593834 # new name W
+B = 0.35506058 # new name U
+C = 0.38501704 # new name V
+D = 0.40824829
+numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
+
+
 def degrees_to_phases(d):
     return np.exp(1j * np.pi / 180 * d)
 
@@ -79,6 +86,15 @@ for l in sys.stdin:
         mubs[filename] = []
     factors = serialized_to_factors((left_degrees, left_permutation, x_degrees, y_degrees, right_permutation, right_degrees))
     mubs[filename].append(factors)
+
+
+def factorized_mub_to_mub(factorized_mub):
+    mub = []
+    for i in range(3):
+        basis = factors_to_basis(factorized_mub[i])
+        mub.append(basis)
+    mub = np.array(mub)
+    return mub
 
 
 '''
@@ -175,10 +191,122 @@ def remove_first_left_effect(factorized_mub):
     return factorized_mub
 
 
+def angler(x):
+    return np.angle(x) * 180 / np.pi
+
+
+# between -30 and 30 actually, so that 60-divisible angles
+# stably land around 0.
+def rot_to_60(p_orig):
+    p = p_orig
+    while not(-np.pi / 6 <= np.angle(p) < np.pi / 6):
+        p *= -np.conjugate(W)
+    return p
+
+
+def identify_alpha_delta(b0, b1):
+    prod = np.conjugate(b0.T) @ b1
+    msquared = np.abs(prod) ** 2
+    normed = prod.copy()
+    normed /= np.abs(normed)
+
+    magnitude_masks = [np.isclose(msquared, numerical_magic_constants[i], atol=1e-4).astype(int) for i in range(3)]
+    magnitude_masks = np.array(magnitude_masks)
+
+    A_mask = magnitude_masks[0]
+    collection = []
+    for (i, j) in BOARD:
+        if A_mask[i, j]:
+            rot = normed[i, j]
+            collection.append(rot)
+    collection = np.array(collection)
+
+    coll_60 = []
+    epsilon = 0.01
+    for rot in collection:
+        while not(epsilon <= np.angle(rot) < np.pi / 3 + epsilon):
+            rot *= np.exp(1j * np.pi / 3)
+        coll_60.append(rot)
+    coll_60 = np.array(coll_60)
+    # -> coll_60 is supposed to have only 3 distinct values up to numerical precision.
+    #    12 alpha, 6 alpha delta, 6 alpha conj(delta).
+    pairs = coll_60[None, :] / coll_60[:, None]
+    neighbors = np.isclose(pairs, 1, atol=1e-4)
+    neighbor_counts = neighbors.sum(axis=1)
+    # we are interested in the ones that have exactly 12 neighbors:
+    alpha_circle = collection[neighbor_counts == 12]
+    # plt.scatter(collection.real, collection.imag) plt.show()
+    assert len(alpha_circle) == 12
+
+    # any element of alpha_circle will do as alpha, it's fully symmetric
+    # we break tie by choosing the one closest to 0 degrees.
+    dist_to_0 = np.abs(np.angle(alpha_circle))
+    i = np.argmin(dist_to_0)
+    alpha = alpha_circle[i]
+    collection /= alpha
+    alpha_circle = collection[neighbor_counts == 12]
+
+    # more exactly delta union conj(delta) circle:
+    delta_circle = collection[neighbor_counts == 6]
+    assert len(delta_circle) == 12
+    # after the previous division by alpha,
+    # any element of the delta_circle will do as delta.
+    # we break the tie by choosing the one closest to 0,
+    # that's supposed to be either ~7.3737 degrees or ~60-7.3737 degrees.
+    # we then mirror it to ~7.3737.
+    dist_to_0 = np.abs(np.angle(delta_circle))
+    i = np.argmin(dist_to_0)
+    delta = delta_circle[i]
+    alpha = rot_to_60(alpha)
+    delta = rot_to_60(delta)
+    if angler(delta) < 0:
+        delta = np.conjugate(delta)
+        if angler(delta) > 15:
+            delta = WW * np.conjugate(delta)
+            assert angler(delta) < 15
+    print("alpha", angler(alpha), "delta", angler(delta))
+    return alpha, delta
+
+
+# gotta do it after remove_right_effects_from_mub() and remove_first_left_effect().
+def alpha_removal(factorized_mub):
+    factorized_mub2 = [factorized_mub[0]]
+    mub = factorized_mub_to_mub(factorized_mub)
+
+    alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
+    left_phases, left_pm, x, y, right_pm, right_phases = factorized_mub[1]
+    factorized_mub2.append((left_phases / alpha1, left_pm, x, y, right_pm, right_phases))
+
+    alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
+    assert np.isclose(delta1, delta2, atol=1e-4)
+    left_phases, left_pm, x, y, right_pm, right_phases = factorized_mub[2]
+    factorized_mub2.append((left_phases / alpha2, left_pm, x, y, right_pm, right_phases))
+
+    mub[1] /= alpha1
+    mub[2] /= alpha2
+    mub2 = factorized_mub_to_mub(factorized_mub2)
+    assert np.allclose(mub, mub2, atol=1e-4)
+
+    alpha1, delta1 = identify_alpha_delta(mub2[0], mub2[1])
+    assert np.isclose(alpha1 ** 6, 1, atol=1e-3)
+    alpha2, delta2 = identify_alpha_delta(mub2[0], mub2[2])
+    assert np.isclose(alpha2 ** 6, 1, atol=1e-3)
+
+    alpha0, delta0 = identify_alpha_delta(mub2[1], mub2[2])
+    assert np.isclose(alpha0 ** 6, 1, atol=1e-3)
+    return factorized_mub2
+
+
 factorized_mub = remove_right_effects_from_mub(factorized_mub)
 factorized_mub = reorder_by_fourier_params(factorized_mub)
 factorized_mub = remove_first_left_effect(factorized_mub)
 
+do_alpha_removal = True
+if do_alpha_removal:
+    factorized_mub = alpha_removal(factorized_mub)
+
+
+mub = factorized_mub_to_mub(factorized_mub)
 
 def dump_basis(factors):
     left_phases, left_pm, x, y, right_pm, right_phases = factors
@@ -205,18 +333,7 @@ def short_dump_mub(factorized_mub):
     print(angler(factorized_mub[1][0]), perm1, angler(factorized_mub[2][0]), perm2)
 
 
-def angler(x):
-    return np.angle(x) * 180 / np.pi
-
-
 short_dump_mub(factorized_mub)
-
-
-mub = []
-for i in range(3):
-    basis = factors_to_basis(factorized_mub[i])
-    mub.append(basis)
-mub = np.array(mub)
 
 
 def closeness(a, b):
@@ -412,22 +529,17 @@ def create_basis(indx, factors):
     return left_phases_var, symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_var, 1)
 
 
-# all the below is true for normalized/mub_10024.npy and not much else.
-# the goal is to reverse engineer this single one. the rest is combinatorics,
-# the manifold is zero dimensional.
-
-
-
-A = 0.42593834 # new name W
-B = 0.35506058 # new name U
-C = 0.38501704 # new name V
-D = 0.40824829
-numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 
 WWsym = sympy.symbols('phi') # 12th root of unity.
 magnitudes_sym = sympy.symbols('A B C')
 xvar, deltasym = symbols('x delta')
-alpha01sym, alpha02sym = sympy.symbols('alpha1 alpha2')
+
+if do_alpha_removal:
+    alpha01sym, alpha02sym = 1, 1
+else:
+    alpha01sym, alpha02sym = sympy.symbols('alpha1 alpha2')
+
+
 left_phases_var_1 = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row vector
 left_phases_var_2 = Matrix([[sympy.symbols(f'p2{i}') for i in range(6)]])
 
@@ -439,80 +551,6 @@ d_2 = factorized_mub[2][0]
 x = factorized_mub[0][2]
 
 value_dict[xvar] = x
-
-
-# between -30 and 30 actually, so that 60-divisible angles
-# stably land around 0.
-def rot_to_60(p_orig):
-    p = p_orig
-    while not(-np.pi / 6 <= np.angle(p) < np.pi / 6):
-        p *= -np.conjugate(W)
-    return p
-
-
-def identify_alpha_delta(b0, b1):
-    prod = np.conjugate(b0.T) @ b1
-    msquared = np.abs(prod) ** 2
-    normed = prod.copy()
-    normed /= np.abs(normed)
-
-    magnitude_masks = [np.isclose(msquared, numerical_magic_constants[i], atol=1e-4).astype(int) for i in range(3)]
-    magnitude_masks = np.array(magnitude_masks)
-
-    A_mask = magnitude_masks[0]
-    collection = []
-    for (i, j) in BOARD:
-        if A_mask[i, j]:
-            rot = normed[i, j]
-            collection.append(rot)
-    collection = np.array(collection)
-
-    coll_60 = []
-    epsilon = 0.01
-    for rot in collection:
-        while not(epsilon <= np.angle(rot) < np.pi / 3 + epsilon):
-            rot *= np.exp(1j * np.pi / 3)
-        coll_60.append(rot)
-    coll_60 = np.array(coll_60)
-    # -> coll_60 is supposed to have only 3 distinct values up to numerical precision.
-    #    12 alpha, 6 alpha delta, 6 alpha conj(delta).
-    pairs = coll_60[None, :] / coll_60[:, None]
-    neighbors = np.isclose(pairs, 1, atol=1e-4)
-    neighbor_counts = neighbors.sum(axis=1)
-    # we are interested in the ones that have exactly 12 neighbors:
-    alpha_circle = collection[neighbor_counts == 12]
-    # plt.scatter(collection.real, collection.imag) plt.show()
-    assert len(alpha_circle) == 12
-
-    # any element of alpha_circle will do as alpha, it's fully symmetric
-    # we break tie by choosing the one closest to 0 degrees.
-    dist_to_0 = np.abs(np.angle(alpha_circle))
-    i = np.argmin(dist_to_0)
-    alpha = alpha_circle[i]
-    collection /= alpha
-    alpha_circle = collection[neighbor_counts == 12]
-
-    # more exactly delta union conj(delta) circle:
-    delta_circle = collection[neighbor_counts == 6]
-    assert len(delta_circle) == 12
-    # after the previous division by alpha,
-    # any element of the delta_circle will do as delta.
-    # we break the tie by choosing the one closest to 0,
-    # that's supposed to be either ~7.3737 degrees or ~60-7.3737 degrees.
-    # we then mirror it to ~7.3737.
-    dist_to_0 = np.abs(np.angle(delta_circle))
-    i = np.argmin(dist_to_0)
-    delta = delta_circle[i]
-    alpha = rot_to_60(alpha)
-    delta = rot_to_60(delta)
-    if angler(delta) < 0:
-        delta = np.conjugate(delta)
-        if angler(delta) > 15:
-            delta = WW * np.conjugate(delta)
-            assert angler(delta) < 15
-    print("alpha", angler(alpha), "delta", angler(delta))
-    return alpha, delta
-
 
 # BEWARE: the result is yet to be multiplied by 6 * alphasym.
 def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
@@ -555,63 +593,33 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
     return final_result
 
 
-# BEWARE, this is modifying global state!
+# BEWARE: this is modifying global state!
 # at least it does not overwrite it without checking.
 def reconstruct_product_full_service(b0, b1, indx):
     alpha, delta = identify_alpha_delta(b0, b1)
 
-    alphasym, deltasym = sympy.symbols(f"alpha{indx}, delta")
+    alphasym, deltasym = sympy.symbols(f"alpha{indx} delta")
 
-    assert alphasym not in value_dict
-    value_dict[alphasym] = alpha
     if deltasym in value_dict:
         assert np.isclose(value_dict[deltasym], delta, atol=1e-4)
     value_dict[deltasym] = delta
+
+    if do_alpha_removal:
+        # at this point is is already supposed to be removed
+        assert np.isclose(alpha, 1, atol=1e-4)
+    else:
+        assert alphasym not in value_dict
+        value_dict[alphasym] = alpha
 
     p = reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym)
     return p
 
 
 
-# TODO do it on the factorized one, too.
-# actually, only do it on the factorized, and rebuild.
-def alpha_removal(mub):
-    alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
-    mub[1] /= alpha1
-    alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
-    mub[2] /= alpha2
-
-    alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
-    assert np.isclose(alpha1 ** 6, 1, atol=1e-3)
-    alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
-    assert np.isclose(alpha2 ** 6, 1, atol=1e-3)
-
-    alpha0, delta0 = identify_alpha_delta(mub[1], mub[2])
-    assert np.isclose(alpha0 ** 6, 1, atol=1e-3)
-    return mub
-
-
 def sym_to_num(formula):
     f = formula
     for sym, num in value_dict.items():
         f = f.subs(sym, num)
-    try:
-        a = np.array(f, dtype=np.complex128)
-    except:
-        print("failed to fully evaluate", formula)
-        print("still variables left in", f)
-        raise
-    return np.squeeze(a)
-
-    f = formula.subs(Wsym, W).subs(WWsym, np.exp(TIP/12))
-    f = f.subs(xvar, x)
-    # f = f.subs(BperAvar, B/A).subs(CperAvar, C/A)
-    f = f.subs(magnitudes_sym[0], A).subs(magnitudes_sym[1], B).subs(magnitudes_sym[2], C)
-    f = f.subs(alpha01sym, alpha01).subs(delta01sym, delta01)
-    f = f.subs(alpha02sym, alpha02).subs(delta02sym, delta02)
-    for i in range(6):
-        f = f.subs(left_phases_var_1[i], d_1[i])
-        f = f.subs(left_phases_var_2[i], d_2[i])
     try:
         a = np.array(f, dtype=np.complex128)
     except:
@@ -633,9 +641,6 @@ def create_symbolic_mub(factorized_mub):
     return symbolic_bases
 
 
-# TODO only do it when we can do it on factorized as well.
-# mub = alpha_removal(mub)
-
 prod01reconstructed_sym = reconstruct_product_full_service(mub[0], mub[1], 1)
 print("B_1^\\dag B_2 = 6 \\alpha_2", sympy.latex(prod01reconstructed_sym))
 prod01reconstructed_sym *= 6 * alpha01sym # it immediately executes, so it's nicer before it
@@ -643,6 +648,8 @@ prod01reconstructed_sym *= 6 * alpha01sym # it immediately executes, so it's nic
 prod02reconstructed_sym =  reconstruct_product_full_service(mub[0], mub[2], 2)
 print("B_1^\\dag B_3 = 6 \\alpha_3", sympy.latex(prod02reconstructed_sym))
 prod02reconstructed_sym *= 6 * alpha02sym
+
+print("x =", repr(x), "delta =", repr(value_dict[deltasym]))
 
 
 symbolic_bases = create_symbolic_mub(factorized_mub)
@@ -653,29 +660,6 @@ for i in range(6):
 
 for i in range(3):
     assert np.allclose(sym_to_num(symbolic_bases[i]), mub[i])
-
-# this is where we collect the D_1 elements written up in terms of A,B,C,x,W,WW.
-phase_solution = left_phases_var_1[:]
-
-symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var_1[0], conjugate(xvar))
-phase_solution[0] = conjugate(xvar)
-assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
-symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var_1[1], -Wsym ** 2)
-phase_solution[1] = -Wsym ** 2
-assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
-symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var_1[3], -Wsym * conjugate(xvar) * left_phases_var_1[4])
-phase_solution[3] = -Wsym * conjugate(xvar) * left_phases_var_1[4]
-assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
-symbolic_bases[1] = simplify_roots(enforce_norm_one(symbolic_bases[1], [xvar]))
-
-print("B_1", symbolic_bases[1])
-
-# we know less about symbolic_bases[2], but we know a few things:
-assert np.allclose(sym_to_num(symbolic_bases[2]), mub[2])
-symbolic_bases[2] = symbolic_bases[2].subs(left_phases_var_2[0], -1)
-symbolic_bases[2] = symbolic_bases[2].subs(left_phases_var_2[2], left_phases_var_1[2])
-symbolic_bases[2] = simplify_roots(enforce_norm_one(symbolic_bases[2], [xvar]))
-assert np.allclose(sym_to_num(symbolic_bases[2]), mub[2])
 
 
 prod01sym = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
@@ -719,13 +703,6 @@ diff02 = prod02sym - prod02reconstructed_sym
 assert np.allclose(sym_to_num(diff02), 0, atol=1e-4)
 diff02 = subs_roots(diff02)
 assert np.allclose(sym_to_num(diff02), 0, atol=1e-4)
-
-
-'''
-for i in range(6):
-    for j in range(6):
-        print(i, j, "=>", diff[i, j])
-'''
 
 
 def extract_directions(eq, variables):
