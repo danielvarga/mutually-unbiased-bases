@@ -637,7 +637,7 @@ positions01 = [ #  BFE
 ]
 
 # positions02 = [ (i, j) for i in range(6) for j in range(6) ]
-positions02 = [(0, 0), (0, 2), (0, 3), (0, 5), (1, 1), (1, 2)]
+positions02 = [(0, 0), (0, 2), (0, 3), (0, 5), (1, 2)]
 
 
 # variables = [sympy.symbols(f'p1{i}') for i in range(6)]
@@ -699,9 +699,9 @@ def collect_linear_system(diff, variables, positions):
     # note: if we keep the first row and the first element of the second row.
     # that's already rank 6, enough to determine all our variables.
     for (i, j) in positions:
-            direction, bias = extract_directions(diff[i, j], variables)
-            directions.append(direction)
-            biases.append(bias)
+        direction, bias = extract_directions(diff[i, j], variables)
+        directions.append(direction)
+        biases.append(bias)
 
     # a python list of column vector sympy Matrices is not trivial to convert to a sympy Matrix:
     directions = Matrix([[coeff[0] for coeff in direction.tolist()] for direction in directions])
@@ -718,7 +718,11 @@ biases = expand(biases)
 
 print("---")
 
-def dump_eq(name, eq):
+def dump_eq(variable, eq):
+    if isinstance(variable, str):
+        name = variable
+    else:
+        name = sympy.latex(variable)
     print("\\begin{equation}")
     print(name, "=", sympy.latex(nsimplify(eq)))
     print("\\end{equation}")
@@ -744,7 +748,6 @@ def numerically_solve_linear_system(directions, biases):
 
 predictions = numerically_solve_linear_system(directions, biases)
 expectations = sym_to_num(Matrix(variables))
-print("!!!", predictions, expectations)
 assert np.allclose(predictions, expectations, atol=1e-4)
 print("passed the test:", Matrix(variables), "can be reconstructed from these elements of the product")
 
@@ -777,8 +780,15 @@ predictions_sym = Matrix(predictions_sym)
 
 assert np.allclose(sym_to_num(predictions_sym), expectations, atol=1e-4)
 
-for i in range(4):
-    dump_eq(str(variables[i]), predictions_sym[i])
+def mytogether(a):
+    a = sympy.polys.rationaltools.together(a)
+    a = sympy.polys.polytools.factor(a, gaussian=True)
+    return a
+
+for variable, prediction in zip(variables, predictions_sym):
+    prediction = enforce_norm_one(prediction, [xvar])
+    prediction = mytogether(prediction)
+    dump_eq(variable, prediction)
 
 
 # TODO this is prod01 specific
@@ -790,10 +800,6 @@ phase_solution[1] = subs_roots(phase_solution[1])
 phase_solution[3] = subs_roots(expand(phase_solution[3].subs(left_phases_var_1[4], phase_solution[4])))
 
 
-def mytogether(a):
-    a = sympy.polys.rationaltools.together(a)
-    a = sympy.polys.polytools.factor(a, gaussian=True)
-    return a
 
 
 # turning a/c + b/c into (a+b)/c, much much shorter:
