@@ -426,19 +426,19 @@ numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 
 WWsym = sympy.symbols('phi') # 12th root of unity.
 magnitudes_sym = sympy.symbols('A B C')
-xvar = symbols('x')
-alpha01sym, delta01sym = sympy.symbols('alpha1 delta1')
-alpha02sym, delta02sym = sympy.symbols('alpha2 delta2')
+xvar, deltasym = symbols('x delta')
+alpha01sym, alpha02sym = sympy.symbols('alpha1 alpha2')
 left_phases_var_1 = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row vector
 left_phases_var_2 = Matrix([[sympy.symbols(f'p2{i}') for i in range(6)]])
+
+value_dict = {Wsym: W, WWsym: WW,
+    magnitudes_sym[0]: A, magnitudes_sym[1]: B, magnitudes_sym[2]: C}
 
 d_1 = factorized_mub[1][0]
 d_2 = factorized_mub[2][0]
 x = factorized_mub[0][2]
-alpha01 = 0.8078018037463457+0.589454193185654j
-delta01 = -0.12834049204788406+0.9917301639563593j
-alpha02 = 0.38501828415482425+0.9229089450571356j
-delta02 = 0.923033846322939-0.3847187525222561j
+
+value_dict[xvar] = x
 
 
 # between -30 and 30 actually, so that 60-divisible angles
@@ -448,7 +448,6 @@ def rot_to_60(p_orig):
     while not(-np.pi / 6 <= np.angle(p) < np.pi / 6):
         p *= -np.conjugate(W)
     return p
-
 
 
 def identify_alpha_delta(b0, b1):
@@ -556,13 +555,26 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
     return final_result
 
 
+# BEWARE, this is modifying global state!
+# at least it does not overwrite it without checking.
 def reconstruct_product_full_service(b0, b1, indx):
     alpha, delta = identify_alpha_delta(b0, b1)
+
     alphasym, deltasym = sympy.symbols(f"alpha{indx}, delta")
+
+    assert alphasym not in value_dict
+    value_dict[alphasym] = alpha
+    if deltasym in value_dict:
+        assert np.isclose(value_dict[deltasym], delta, atol=1e-4)
+    value_dict[deltasym] = delta
+
     p = reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym)
     return p
 
 
+
+# TODO do it on the factorized one, too.
+# actually, only do it on the factorized, and rebuild.
 def alpha_removal(mub):
     alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
     mub[1] /= alpha1
@@ -580,6 +592,17 @@ def alpha_removal(mub):
 
 
 def sym_to_num(formula):
+    f = formula
+    for sym, num in value_dict.items():
+        f = f.subs(sym, num)
+    try:
+        a = np.array(f, dtype=np.complex128)
+    except:
+        print("failed to fully evaluate", formula)
+        print("still variables left in", f)
+        raise
+    return np.squeeze(a)
+
     f = formula.subs(Wsym, W).subs(WWsym, np.exp(TIP/12))
     f = f.subs(xvar, x)
     # f = f.subs(BperAvar, B/A).subs(CperAvar, C/A)
@@ -610,25 +633,24 @@ def create_symbolic_mub(factorized_mub):
     return symbolic_bases
 
 
-mub = alpha_removal(mub)
+# TODO only do it when we can do it on factorized as well.
+# mub = alpha_removal(mub)
 
-alpha, delta = identify_alpha_delta(mub[0], mub[1])
-prod01reconstructed_sym = reconstruct_product(mub[0], mub[1], alpha, delta, alpha01sym, delta01sym)
+prod01reconstructed_sym = reconstruct_product_full_service(mub[0], mub[1], 1)
 print("B_1^\\dag B_2 = 6 \\alpha_2", sympy.latex(prod01reconstructed_sym))
 prod01reconstructed_sym *= 6 * alpha01sym # it immediately executes, so it's nicer before it
 
-alpha, delta = identify_alpha_delta(mub[0], mub[2])
-prod02reconstructed_sym =  reconstruct_product(mub[0], mub[2], alpha, delta, alpha02sym, delta02sym)
+prod02reconstructed_sym =  reconstruct_product_full_service(mub[0], mub[2], 2)
 print("B_1^\\dag B_3 = 6 \\alpha_3", sympy.latex(prod02reconstructed_sym))
 prod02reconstructed_sym *= 6 * alpha02sym
 
 
 symbolic_bases = create_symbolic_mub(factorized_mub)
 
-# why range(2) not range(3)?
-# we don't do anything with B_2 (the last basis) now,
-# so we don't even substitute its phases.
-# TODO we should.
+for i in range(6):
+    value_dict[left_phases_var_1[i]] = d_1[i]
+    value_dict[left_phases_var_2[i]] = d_2[i]
+
 for i in range(3):
     assert np.allclose(sym_to_num(symbolic_bases[i]), mub[i])
 
@@ -739,45 +761,13 @@ if which_to_solve == 1:
     diff = diff01
     positions = positions01
     alphasym = alpha01sym
-if which_to_solve == 2:
+elif which_to_solve == 2:
     variables = variables2
     diff = diff02
     positions = positions02
     alphasym = alpha02sym
 else:
     assert False
-
-
-
-
-def show_points(points, title):
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots()
-    ax.scatter(points.real, points.imag)
-    partition = "ABCDED FAGEGC CDEDAB GEGCFA EDABCD GCFAGE".replace(" ", "")
-    if False:
-        for i, clss in enumerate(partition):
-            ax.annotate(" " * (i // 4) + f"{i}-{clss}", (points.real[i], points.imag[i]))
-    plt.title(title)
-    plt.show()
-
-
-def show_directions(directions, biases):
-    directions_num = sym_to_num(directions)
-    biases_num = sym_to_num(biases)
-    for i in range(6):
-        points = directions_num[:, i]
-        show_points(points, title=str(variables[i]))
-    points = biases_num
-    show_points(points, title="biases")
-
-
-# show_directions(all_directions, all_biases) ; exit()
-
-
-
-# positions = [(0, i) for i in range(4)] # + [(1, 0)]
 
 
 def collect_linear_system(diff, variables, positions):
@@ -803,7 +793,6 @@ directions, biases = collect_linear_system(diff, variables, positions)
 directions = expand(directions)
 biases = expand(biases)
 
-print("---")
 
 def dump_eq(variable, eq):
     if isinstance(variable, str):
@@ -816,6 +805,7 @@ def dump_eq(variable, eq):
     print()
 
 
+print("---")
 dump_eq("A", directions)
 dump_eq("x", variables)
 dump_eq("b", biases)
@@ -833,11 +823,14 @@ def numerically_solve_linear_system(directions, biases):
     return predictions
 
 
-predictions = numerically_solve_linear_system(directions, biases)
-expectations = sym_to_num(Matrix(variables))
-assert np.allclose(predictions, expectations, atol=1e-4)
-print("passed the test:", Matrix(variables), "can be reconstructed from these elements of the product")
+def numerically_solve_and_evaluate_linear_system(directions, biases, variables):
+    predictions = numerically_solve_linear_system(directions, biases)
+    expectations_num = sym_to_num(Matrix(variables))
+    assert np.allclose(predictions, expectations_num, atol=1e-4)
+    print("passed the test:", Matrix(variables), "can be reconstructed from these elements of the product")
 
+
+numerically_solve_and_evaluate_linear_system(directions, biases, variables)
 
 def create_and_verify_eq(formula):
     eq = subs_roots(formula)
@@ -860,21 +853,24 @@ predictions_sym = linsolve((directions, -biases), variables)
 # take single element of FiniteSet. it's a tuple, but we convert it to list:
 predictions_sym = list(list(predictions_sym)[0])
 
-for i in range(len(predictions_sym)):
-    predictions_sym[i] = simplify(factor(simplify(predictions_sym[i]), gaussian=True))
-
-predictions_sym = Matrix(predictions_sym)
-
-assert np.allclose(sym_to_num(predictions_sym), expectations, atol=1e-4)
 
 def mytogether(a):
     a = sympy.polys.rationaltools.together(a)
     a = sympy.polys.polytools.factor(a, gaussian=True)
     return a
 
+
+for i in range(len(predictions_sym)):
+    predictions_sym[i] = simplify(factor(simplify(predictions_sym[i]), gaussian=True))
+    predictions_sym[i] = enforce_norm_one(predictions_sym[i], [xvar])
+    predictions_sym[i] = mytogether(predictions_sym[i])
+
+predictions_sym = Matrix(predictions_sym)
+
+expectations_num = sym_to_num(Matrix(variables))
+assert np.allclose(sym_to_num(predictions_sym), expectations_num, atol=1e-4)
+
 for variable, prediction in zip(variables, predictions_sym):
-    prediction = enforce_norm_one(prediction, [xvar])
-    prediction = mytogether(prediction)
     dump_eq(variable, prediction)
 
 
