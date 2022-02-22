@@ -11,6 +11,7 @@ from sympy.matrices.dense import matrix_multiply_elementwise
 TP = 2 * np.pi
 TIP = 2j * np.pi
 W = np.exp(TIP / 3)
+WW = np.exp(TIP / 12)
 
 A = 0.42593834 # new name W
 B = 0.35506058 # new name U
@@ -21,26 +22,104 @@ numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 WWsym = sympy.symbols('phi') # 12th root of unity.
 magnitudes_sym = sympy.symbols('A B C')
 
+BOARD = [(i, j) for i in range(6) for j in range(6)]
+
 
 # mub_120_normal.npy
 filename = sys.argv[1]
 mub = np.load(filename)
 mub *= 6 ** 0.5
-
+mub = mub[1:] # remove identity
 
 def angler(x):
     return np.angle(x) * 180 / np.pi
 
 
+# between -30 and 30 actually, so that 60-divisible angles
+# are stably land around 0.
 def rot_to_60(p_orig):
     p = p_orig
-    while not(0 <= np.angle(p) < np.pi / 3):
+    while not(-np.pi / 6 <= np.angle(p) < np.pi / 6):
         p *= -np.conjugate(W)
     return p
 
 
-def find_delta(b0, b1):
-    WW = np.exp(TIP / 12)
+
+def identify_alpha_delta(b0, b1):
+    prod = np.conjugate(b0.T) @ b1
+    msquared = np.abs(prod) ** 2
+    normed = prod.copy()
+    normed /= np.abs(normed)
+
+    magnitude_masks = [np.isclose(msquared, numerical_magic_constants[i], atol=1e-4).astype(int) for i in range(3)]
+    magnitude_masks = np.array(magnitude_masks)
+
+    A_mask = magnitude_masks[0]
+    collection = []
+    for (i, j) in BOARD:
+        if A_mask[i, j]:
+            rot = normed[i, j]
+            collection.append(rot)
+    collection = np.array(collection)
+
+    coll_60 = []
+    epsilon = 0.01
+    for rot in collection:
+        while not(epsilon <= np.angle(rot) < np.pi / 3 + epsilon):
+            rot *= np.exp(1j * np.pi / 3)
+        coll_60.append(rot)
+    coll_60 = np.array(coll_60)
+    # -> coll_60 is supposed to have only 3 distinct values up to numerical precision.
+    #    12 alpha, 6 alpha delta, 6 alpha conj(delta).
+    pairs = coll_60[None, :] / coll_60[:, None]
+    neighbors = np.isclose(pairs, 1, atol=1e-4)
+    neighbor_counts = neighbors.sum(axis=1)
+    # we are interested in the ones that have exactly 12 neighbors:
+    alpha_circle = collection[neighbor_counts == 12]
+    # plt.scatter(collection.real, collection.imag) plt.show()
+    assert len(alpha_circle) == 12
+
+    # any element of alpha_circle will do as alpha, it's fully symmetric
+    # we break tie by choosing the one closest to 0 degrees.
+    dist_to_0 = np.abs(np.angle(alpha_circle))
+    i = np.argmin(dist_to_0)
+    alpha = alpha_circle[i]
+    collection /= alpha
+    alpha_circle = collection[neighbor_counts == 12]
+
+    '''
+    plt.scatter(collection.real, collection.imag)
+    plt.scatter(alpha_circle.real, alpha_circle.imag)
+    plt.show()
+    plt.scatter(angler(collection), np.zeros_like(collection))
+    plt.scatter(angler(alpha_circle), np.zeros_like(alpha_circle))
+    plt.show()
+    exit()
+    '''
+
+    # more exactly delta union conj(delta) circle:
+    delta_circle = collection[neighbor_counts == 6]
+    assert len(delta_circle) == 12
+    # after the previous division by alpha,
+    # any element of the delta_circle will do as delta.
+    # we break the tie by choosing the one closest to 0,
+    # that's supposed to be either ~7.3737 degrees or ~60-7.3737 degrees.
+    dist_to_0 = np.abs(np.angle(delta_circle))
+    i = np.argmin(dist_to_0)
+    delta = delta_circle[i]
+    alpha = rot_to_60(alpha)
+    delta = rot_to_60(delta)
+    if angler(delta) < 0:
+        delta = np.conjugate(delta)
+        if angler(delta) > 15:
+            delta = WW * np.conjugate(delta)
+            assert angler(delta) < 15
+    print("alpha", angler(alpha), "delta", angler(delta))
+    return alpha, delta
+
+
+# a slower version of identify_alpha_delta(b0, b1)
+def identify_alpha_delta_obsolete(b0, b1):
     prod = np.conjugate(b0.T) @ b1
     normed = prod.copy()
     normed /= np.abs(normed)
@@ -56,13 +135,11 @@ def find_delta(b0, b1):
     delta = beta / alpha
     alpha = rot_to_60(alpha)
     delta = rot_to_60(delta)
-    if angler(delta) > 30:
-        delta = WW ** 2 * np.conjugate(delta)
-        assert angler(delta) < 30
+    if angler(delta) < 0:
+        delta = np.conjugate(delta)
         if angler(delta) > 15:
             delta = WW * np.conjugate(delta)
             assert angler(delta) < 15
-
     print("alpha", angler(alpha), "delta", angler(delta))
     return alpha, delta
 
@@ -74,12 +151,6 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
     normed = prod.copy()
     normed /= np.abs(normed)
 
-    import matplotlib.pyplot as plt
-    vecs = (normed / normed[0, 0]).flatten()
-    print(np.sort(angler(vecs)))
-    # plt.scatter(vecs.real, vecs.imag) ; plt.show()
-
-    WW = np.exp(TIP / 12)
     roots = WW ** np.arange(12)
     candidates = np.array([1, delta, 1 / delta])
     all_candidates = alpha * candidates[:, None] * roots[None, :]
@@ -116,15 +187,34 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
 
 
 def reconstruct_product_full_service(b0, b1, indx):
-    alpha, delta = find_delta(b0, b1)
+    alpha, delta = identify_alpha_delta(b0, b1)
     alphasym, deltasym = sympy.symbols(f"alpha{indx}, delta")
     p = reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym)
     return p
 
 
+
+def alpha_removal(mub):
+    alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
+    mub[1] /= alpha1
+    alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
+    mub[2] /= alpha2
+
+    alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
+    assert np.isclose(alpha1 ** 6, 1, atol=1e-3)
+    alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
+    assert np.isclose(alpha2 ** 6, 1, atol=1e-3)
+
+    alpha0, delta0 = identify_alpha_delta(mub[1], mub[2])
+    assert np.isclose(alpha0 ** 6, 1, atol=1e-3)
+    return mub
+
+
+mub = alpha_removal(mub)
+
 def dump_products():
     for (i, j) in [(0, 1), (1, 2), (2, 0)]:
-        p = reconstruct_product_full_service(mub[i + 1], mub[j + 1], j)
+        p = reconstruct_product_full_service(mub[i], mub[j], j)
         print(i, j, p)
 
 
