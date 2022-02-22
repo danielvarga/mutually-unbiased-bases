@@ -422,11 +422,11 @@ C = 0.38501704 # new name V
 D = 0.40824829
 numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 
-WWsym = sympy.symbols('WW') # 12th root of unity.
+WWsym = sympy.symbols('phi') # 12th root of unity.
 magnitudes_sym = sympy.symbols('A B C')
 xvar = symbols('x')
-alpha01sym, delta01sym = sympy.symbols('alpha01 delta01')
-alpha02sym, delta02sym = sympy.symbols('alpha02 delta02')
+alpha01sym, delta01sym = sympy.symbols('alpha1 delta1')
+alpha02sym, delta02sym = sympy.symbols('alpha2 delta2')
 left_phases_var_1 = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row vector
 left_phases_var_2 = Matrix([[sympy.symbols(f'p2{i}') for i in range(6)]])
 
@@ -437,6 +437,22 @@ alpha01 = 0.8078018037463457+0.589454193185654j
 delta01 = -0.12834049204788406+0.9917301639563593j
 alpha02 = 0.38501828415482425+0.9229089450571356j
 delta02 = 0.923033846322939-0.3847187525222561j
+
+
+# only works reliably for mub_10024 P01, P02.
+def find_delta(b0, b1):
+    prod = np.conjugate(b0.T) @ b1
+    normed = prod.copy()
+    normed /= np.abs(normed)
+    alpha_hm = normed.sum() / np.abs(normed.sum())
+    print("alpha_hm", angler(alpha_hm))
+    alpha = normed[0, 0]
+    beta = normed[0, 1]
+    delta = beta / alpha
+    print("alpha", angler(alpha), "delta", angler(delta))
+    assert np.isclose(normed[1, 0], alpha / delta), "this is a restriction currently, please use mub_10024.py or generalize"
+    return alpha, delta
+
 
 # at this point we hardwire mub_10024.py, sorry.
 # its distinct characteristic is that the tripartition
@@ -455,26 +471,27 @@ delta02 = 0.923033846322939-0.3847187525222561j
 # beta/alpha = alpha/gamma
 # delta := beta/alpha
 # other than that, we are general, so it would not be hard to cover all qmubs.
-def reconstruct_product(b0, b1, alphasym, deltasym):
+# BEWARE: the result is yet to be multiplied by 6 * alphasym.
+def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
     prod = np.conjugate(b0.T) @ b1
-    msquared = np.abs(prod) ** 2
     normed = prod.copy()
     normed /= np.abs(normed)
+    import matplotlib.pyplot as plt
+    vecs = (normed / normed[0, 0]).flatten()
+    print(np.sort(angler(vecs)))
+    # plt.scatter(vecs.real, vecs.imag) ; plt.show()
+
     WW = np.exp(TIP / 12)
     roots = WW ** np.arange(12)
-    alpha = normed[0, 0]
-    beta = normed[0, 1]
-    delta = beta / alpha
-    print("alpha", angler(alpha), "delta", angler(delta))
-    assert np.isclose(normed[1, 0], alpha / delta), "this is a restriction currently, please use mub_10024.py or generalize"
-    candidates = np.array([alpha, alpha * delta, alpha / delta])
-    all_candidates = candidates[:, None] * roots[None, :]
+    candidates = np.array([1, delta, 1 / delta])
+    all_candidates = alpha * candidates[:, None] * roots[None, :]
+
     masks = [np.isclose(normed, all_candidates[i, j], atol=1e-5).astype(int) for i in range(3) for j in range(12)]
     masks = np.array(masks).reshape((3, 12, 6, 6))
     assert masks.sum() == 36, "some elements of the product could not be identified"
     # TODO we can do it without increasing the degree
     roots_sym = Matrix([WWsym ** i for i in range(12)])
-    candidates_sym = [alphasym, alphasym * deltasym, alphasym * conjugate(deltasym)]
+    candidates_sym = [1, deltasym, conjugate(deltasym)]
 
     normed_prod_sym = sympy.ones(6, 6)
     for i in range(6):
@@ -484,18 +501,20 @@ def reconstruct_product(b0, b1, alphasym, deltasym):
             rotation = np.argmax(onehot.sum(axis=0))
             assert onehot[element_index, rotation] == 1
             normed_prod_sym[i, j] *= candidates_sym[element_index] * roots_sym[rotation]
-    assert np.allclose(sym_to_num(normed_prod_sym), normed)
+    assert np.allclose(sym_to_num(alphasym * normed_prod_sym), normed)
 
     msquared = np.abs(prod) ** 2
     masks = [np.isclose(msquared, numerical_magic_constants[i]).astype(int) for i in range(3)]
     masks = np.array(masks)
-    magnitude_matrix_sym = 6 * sympy.ones(6, 6)
+    magnitude_matrix_sym = sympy.ones(6, 6)
     for i in range(6):
         for j in range(6):
             element_index = np.argmax(masks[:, i, j])
             magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
-    assert np.allclose(sym_to_num(magnitude_matrix_sym), np.abs(prod))
-    return matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
+    assert np.allclose(sym_to_num(6 * magnitude_matrix_sym), np.abs(prod))
+    final_result = matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
+    assert np.allclose(sym_to_num(6 * alphasym * final_result), prod)
+    return final_result
 
 
 def sym_to_num(formula):
@@ -529,11 +548,15 @@ def create_symbolic_mub(factorized_mub):
     return symbolic_bases
 
 
-prod01reconstructed_sym = reconstruct_product(mub[0], mub[1], alpha01sym, delta01sym)
-print("reconstruction01", prod01reconstructed_sym)
+alpha, delta = find_delta(mub[0], mub[1])
+prod01reconstructed_sym = reconstruct_product(mub[0], mub[1], alpha, delta, alpha01sym, delta01sym)
+print("B_1^\\dag B_2 = 6 \\alpha_2", sympy.latex(prod01reconstructed_sym))
+prod01reconstructed_sym *= 6 * alpha01sym # it immediately executes, so it's nicer before it
 
-prod02reconstructed_sym = reconstruct_product(mub[0], mub[2], alpha02sym, delta02sym)
-print("reconstruction02", prod02reconstructed_sym)
+alpha, delta = find_delta(mub[0], mub[2])
+prod02reconstructed_sym =  reconstruct_product(mub[0], mub[2], alpha, delta, alpha02sym, delta02sym)
+print("B_1^\\dag B_3 = 6 \\alpha_3", sympy.latex(prod02reconstructed_sym))
+prod02reconstructed_sym *= 6 * alpha02sym
 
 
 symbolic_bases = create_symbolic_mub(factorized_mub)
