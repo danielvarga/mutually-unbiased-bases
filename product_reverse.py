@@ -19,7 +19,7 @@ C = 0.38501704 # new name V
 D = 0.40824829
 numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 
-WWsym = sympy.symbols('phi') # 12th root of unity.
+Wsym, WWsym = sympy.symbols('omega phi') # 3rd and 12th roots of unity.
 magnitudes_sym = sympy.symbols('A B C')
 
 BOARD = [(i, j) for i in range(6) for j in range(6)]
@@ -33,6 +33,23 @@ mub = mub[1:] # remove identity
 
 def angler(x):
     return np.angle(x) * 180 / np.pi
+
+
+value_dict = {Wsym: W, WWsym: WW,
+    magnitudes_sym[0]: A, magnitudes_sym[1]: B, magnitudes_sym[2]: C}
+
+def sym_to_num(formula):
+    f = formula
+    for sym, num in value_dict.items():
+        f = f.subs(sym, num)
+    try:
+        a = np.array(f, dtype=np.complex128)
+    except:
+        print("failed to fully evaluate", formula)
+        print("still variables left in", f)
+        raise
+    return np.squeeze(a)
+
 
 
 # between -30 and 30 actually, so that 60-divisible angles
@@ -87,16 +104,6 @@ def identify_alpha_delta(b0, b1):
     collection /= alpha
     alpha_circle = collection[neighbor_counts == 12]
 
-    '''
-    plt.scatter(collection.real, collection.imag)
-    plt.scatter(alpha_circle.real, alpha_circle.imag)
-    plt.show()
-    plt.scatter(angler(collection), np.zeros_like(collection))
-    plt.scatter(angler(alpha_circle), np.zeros_like(alpha_circle))
-    plt.show()
-    exit()
-    '''
-
     # more exactly delta union conj(delta) circle:
     delta_circle = collection[neighbor_counts == 6]
     assert len(delta_circle) == 12
@@ -104,6 +111,7 @@ def identify_alpha_delta(b0, b1):
     # any element of the delta_circle will do as delta.
     # we break the tie by choosing the one closest to 0,
     # that's supposed to be either ~7.3737 degrees or ~60-7.3737 degrees.
+    # we then mirror it to ~7.3737.
     dist_to_0 = np.abs(np.angle(delta_circle))
     i = np.argmin(dist_to_0)
     delta = delta_circle[i]
@@ -170,7 +178,7 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
             rotation = np.argmax(onehot.sum(axis=0))
             assert onehot[element_index, rotation] == 1
             normed_prod_sym[i, j] *= candidates_sym[element_index] * roots_sym[rotation]
-    # assert np.allclose(sym_to_num(alphasym * normed_prod_sym), normed)
+    assert np.allclose(sym_to_num(alphasym * normed_prod_sym), normed, atol=1e-4)
 
     msquared = np.abs(prod) ** 2
     masks = [np.isclose(msquared, numerical_magic_constants[i]).astype(int) for i in range(3)]
@@ -180,15 +188,25 @@ def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
         for j in range(6):
             element_index = np.argmax(masks[:, i, j])
             magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
-    # assert np.allclose(sym_to_num(6 * magnitude_matrix_sym), np.abs(prod))
+    assert np.allclose(sym_to_num(6 * magnitude_matrix_sym), np.abs(prod), atol=1e-4)
     final_result = matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
-    # assert np.allclose(sym_to_num(6 * alphasym * final_result), prod)
+    assert np.allclose(sym_to_num(6 * alphasym * final_result), prod, atol=1e-4)
     return final_result
 
 
+# BEWARE, this is modifying global state!
+# at least it does not overwrite it without checking.
 def reconstruct_product_full_service(b0, b1, indx):
     alpha, delta = identify_alpha_delta(b0, b1)
+
     alphasym, deltasym = sympy.symbols(f"alpha{indx}, delta")
+
+    assert alphasym not in value_dict
+    value_dict[alphasym] = alpha
+    if deltasym in value_dict:
+        assert np.isclose(value_dict[deltasym], delta, atol=1e-4)
+    value_dict[deltasym] = delta
+
     p = reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym)
     return p
 
