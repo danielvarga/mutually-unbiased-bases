@@ -549,6 +549,7 @@ value_dict = {Wsym: W, WWsym: WW,
 d_1 = factorized_mub[1][0]
 d_2 = factorized_mub[2][0]
 x = factorized_mub[0][2]
+value_dict[xvar] = x
 
 
 # truncates to int
@@ -572,12 +573,12 @@ def symbolic_60(phase):
 
 
 def collect_phase_relations(factorized_mub):
+    import networkx
+    g = networkx.DiGraph()
+
     def isone(p):
         return np.isclose(p, 1, atol=1e-4)
 
-    # TODO keep it in sync with the global left_phases_var_* if naming changes
-    left_phases_var_1 = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row vector
-    left_phases_var_2 = Matrix([[sympy.symbols(f'p2{i}') for i in range(6)]])
     left_phases = Matrix([left_phases_var_1, left_phases_var_2])
 
     latex_eqs = []
@@ -611,51 +612,29 @@ def collect_phase_relations(factorized_mub):
                     if latex_eq is not None:
                         latex_eqs.append(latex_eq)
                         eqs.append(eq)
-    for i, latex_eq in enumerate(latex_eqs):
-        print(latex_eq)
-    return eqs
+                        g.add_edge((a - 1, i), (b - 1, j), eq=eq, latex_eq=latex_eq)
+    # in fact they are cliques, huge overkill but whatever.
+    components = networkx.algorithms.components.strongly_connected_components(g)
+    free_variables = []
+    independent_equations = []
+    for component in components:
+        # sorted lexicographically, could be better, this makes it less consistent
+        # than sorting based on which is multiplied by x, say.
+        elements = sorted(list(component))
+        minimal_element = elements[0]
+        free_variables.append(minimal_element)
+        for element in elements:
+            if element == minimal_element:
+                continue
+            eq = g[element][minimal_element]['eq']
+            latex_eq = g[element][minimal_element]['latex_eq']
+            independent_equations.append(eq)
+            print(latex_eq)
+    return free_variables, independent_equations
 
 
-def collect_phase_relations_obsolete(factorized_mub):
-    latex_eqs = []
-    for a in (1, 2):
-        for b in (1, 2):
-            da = factorized_mub[a][0]
-            db = factorized_mub[b][0]
-            pairs = da[:, None] / db[None, :]
-            pairs60 = np.vectorize(rot_to_60)(pairs)
-            print(a, b)
-            print(angler(pairs60))
-            for i in range(6):
-                for j in range(6):
-                    if a == b and i == j:
-                        continue
-                    if np.isclose(pairs60[i, j], 1, atol=1e-4):
-                        ratio = da[i] / db[j]
-                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(ratio))
-                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(ratio)) + f" d_{{{b+1}{j+1}}}"
-                        latex_eqs.append(latex_eq)
-    for a in (1, 2):
-        for b in (1, 2):
-            da = factorized_mub[a][0]
-            db = factorized_mub[b][0]
-            pairs = da[:, None] / db[None, :] / x
-            pairs60 = np.vectorize(rot_to_60)(pairs)
-            print(a, b, "x")
-            print(angler(pairs60))
-            for i in range(6):
-                for j in range(6):
-                    if np.isclose(pairs60[i, j], 1, atol=1e-4):
-                        ratio = da[i] / db[j] / x
-                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(ratio))
-                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(ratio)) + f" x d_{{{b+1}{j+1}}}"
-                        latex_eqs.append(latex_eq)
-    for latex_eq in latex_eqs:
-        print(latex_eq)
+free_phase_variables, phase_equations = collect_phase_relations(factorized_mub)
 
-collect_phase_relations(factorized_mub) ; exit()
-
-value_dict[xvar] = x
 
 # BEWARE: the result is yet to be multiplied by 6 * alphasym.
 def reconstruct_product(b0, b1, alpha, delta, alphasym, deltasym):
@@ -767,17 +746,26 @@ for i in range(3):
     assert np.allclose(sym_to_num(symbolic_bases[i]), mub[i])
 
 
+def apply_equations(formula, eqs):
+    for eq in eqs:
+        formula = formula.subs(eq.lhs, eq.rhs)
+    return formula
+
+
 prod01sym = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
 prod01sym = simplify_roots(prod01sym)
 print("product01", prod01sym)
+prod01sym = apply_equations(prod01sym, phase_equations)
+print("product01 after applying phase_equations", prod01sym)
 
 prod02sym = Dagger(symbolic_bases[0]) @ symbolic_bases[2]
 prod02sym = simplify_roots(prod02sym)
 print("product02", prod02sym)
+prod02sym = apply_equations(prod02sym, phase_equations)
+print("product02 after applying phase_equations", prod02sym)
 
 assert np.allclose(sym_to_num(prod01sym), np.conjugate(mub[0].T) @ mub[1])
 assert np.allclose(sym_to_num(prod02sym), np.conjugate(mub[0].T) @ mub[2])
-
 
 
 def subs_roots(f):
