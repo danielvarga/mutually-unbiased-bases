@@ -552,20 +552,35 @@ x = factorized_mub[0][2]
 
 
 def collect_phase_relations(factorized_mub):
-    for a in (1,2):
-        for b in (1,2):
+    latex_eqs = []
+    for a in (1, 2):
+        for b in (1, 2):
             da = factorized_mub[a][0]
             db = factorized_mub[b][0]
             pairs = da[:, None] / db[None, :]
             pairs60 = np.vectorize(rot_to_60)(pairs)
             print(a, b)
             print(angler(pairs60))
+            # truncates to int
+            def latex_angle(deg):
+                deg = int(np.around(deg))
+                if deg == 0:
+                    return ""
+                elif deg == 180:
+                    return "-"
+                else:
+                    return f"({deg} ^\circ)"
             for i in range(6):
-                for j in range(i+1, 6):
+                for j in range(6):
+                    if a == b and i == j:
+                        continue
                     if np.isclose(pairs60[i, j], 1, atol=1e-4):
-                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(da[i] / db[j]))
-    for a in (1,2):
-        for b in (1,2):
+                        ratio = da[i] / db[j]
+                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(ratio))
+                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(ratio)) + f" d_{{{b+1}{j+1}}}"
+                        latex_eqs.append(latex_eq)
+    for a in (1, 2):
+        for b in (1, 2):
             da = factorized_mub[a][0]
             db = factorized_mub[b][0]
             pairs = da[:, None] / db[None, :] / x
@@ -575,9 +590,12 @@ def collect_phase_relations(factorized_mub):
             for i in range(6):
                 for j in range(6):
                     if np.isclose(pairs60[i, j], 1, atol=1e-4):
-                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(da[i] / db[j] / x))
-    # tried with delta but didn't hit
-    # alpha, delta = identify_alpha_delta(factors_to_basis(factorized_mub[0]), factors_to_basis(factorized_mub[1]))
+                        ratio = da[i] / db[j] / x
+                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(ratio))
+                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(ratio)) + f" x d_{{{b+1}{j+1}}}"
+                        latex_eqs.append(latex_eq)
+    for latex_eq in latex_eqs:
+        print(latex_eq)
 
 collect_phase_relations(factorized_mub) ; exit()
 
