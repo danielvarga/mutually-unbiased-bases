@@ -550,6 +550,37 @@ d_1 = factorized_mub[1][0]
 d_2 = factorized_mub[2][0]
 x = factorized_mub[0][2]
 
+
+def collect_phase_relations(factorized_mub):
+    for a in (1,2):
+        for b in (1,2):
+            da = factorized_mub[a][0]
+            db = factorized_mub[b][0]
+            pairs = da[:, None] / db[None, :]
+            pairs60 = np.vectorize(rot_to_60)(pairs)
+            print(a, b)
+            print(angler(pairs60))
+            for i in range(6):
+                for j in range(i+1, 6):
+                    if np.isclose(pairs60[i, j], 1, atol=1e-4):
+                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(da[i] / db[j]))
+    for a in (1,2):
+        for b in (1,2):
+            da = factorized_mub[a][0]
+            db = factorized_mub[b][0]
+            pairs = da[:, None] / db[None, :] / x
+            pairs60 = np.vectorize(rot_to_60)(pairs)
+            print(a, b, "x")
+            print(angler(pairs60))
+            for i in range(6):
+                for j in range(6):
+                    if np.isclose(pairs60[i, j], 1, atol=1e-4):
+                        print(a, b, i, j, angler(da[i]), angler(db[j]), angler(da[i] / db[j] / x))
+    # tried with delta but didn't hit
+    # alpha, delta = identify_alpha_delta(factors_to_basis(factorized_mub[0]), factors_to_basis(factorized_mub[1]))
+
+collect_phase_relations(factorized_mub) ; exit()
+
 value_dict[xvar] = x
 
 # BEWARE: the result is yet to be multiplied by 6 * alphasym.
