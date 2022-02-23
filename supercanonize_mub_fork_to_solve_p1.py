@@ -466,7 +466,7 @@ np.save('tmp.npy', put_back_id(mub))
 print("normalized qMUB saved into tmp.npy")
 
 import sympy
-from sympy import symbols, Matrix, Transpose, conjugate, sqrt, cbrt, Rational
+from sympy import symbols, Matrix, Transpose, conjugate, sqrt, cbrt, Rational, Eq
 from sympy import expand, factor, cancel, nsimplify, simplify, fraction
 from sympy.physics.quantum.dagger import Dagger
 from sympy.matrices.dense import matrix_multiply_elementwise
@@ -551,7 +551,72 @@ d_2 = factorized_mub[2][0]
 x = factorized_mub[0][2]
 
 
+# truncates to int
+def latex_angle(deg):
+    deg = int(np.around(deg))
+    if deg == 0:
+        return ""
+    elif deg == 180:
+        return "-"
+    else:
+        return f"({deg} ^\\circ)"
+
+
+# too many preconditions to enumerate :)
+def symbolic_60(phase):
+    deg = angler(phase)
+    deg = int(np.around(deg))
+    assert deg % 60 == 0
+    rank = (deg + 180) // 60
+    return [-1, conjugate(Wsym), -Wsym, 1, -conjugate(Wsym), Wsym, -1][rank]
+
+
 def collect_phase_relations(factorized_mub):
+    def isone(p):
+        return np.isclose(p, 1, atol=1e-4)
+
+    # TODO keep it in sync with the global left_phases_var_* if naming changes
+    left_phases_var_1 = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row vector
+    left_phases_var_2 = Matrix([[sympy.symbols(f'p2{i}') for i in range(6)]])
+    left_phases = Matrix([left_phases_var_1, left_phases_var_2])
+
+    latex_eqs = []
+    eqs = []
+    for a in (1, 2):
+        for b in (1, 2):
+            da = factorized_mub[a][0]
+            db = factorized_mub[b][0]
+            for i in range(6):
+                for j in range(6):
+                    if a == b and i == j:
+                        continue
+                    r = da[i] / db[j]
+                    rx0 = isone(rot_to_60(r))
+                    rxp = isone(rot_to_60(r / x))
+                    rxm = isone(rot_to_60(r * x))
+                    latex_eq = None
+                    eq = None
+                    if rx0:
+                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(r)) + f" d_{{{b+1}{j+1}}}"
+                        eq = Eq(left_phases[a - 1, i], symbolic_60(r) * left_phases[b - 1, j])
+                    elif rxp:
+                        r /= x
+                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(r)) + f" x d_{{{b+1}{j+1}}}"
+                        eq = Eq(left_phases[a - 1, i], symbolic_60(r) * xvar * left_phases[b - 1, j])
+                    elif rxm:
+                        r *= x
+                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(r)) + f" \\overline(x) d_{{{b+1}{j+1}}}"
+                        eq = Eq(left_phases[a - 1, i], symbolic_60(r) * conjugate(xvar) * left_phases[b - 1, j])
+
+                    if latex_eq is not None:
+                        latex_eqs.append(latex_eq)
+                        eqs.append(eq)
+    for i, latex_eq in enumerate(latex_eqs):
+        print(latex_eq)
+    return eqs
+
+
+def collect_phase_relations_obsolete(factorized_mub):
     latex_eqs = []
     for a in (1, 2):
         for b in (1, 2):
@@ -561,15 +626,6 @@ def collect_phase_relations(factorized_mub):
             pairs60 = np.vectorize(rot_to_60)(pairs)
             print(a, b)
             print(angler(pairs60))
-            # truncates to int
-            def latex_angle(deg):
-                deg = int(np.around(deg))
-                if deg == 0:
-                    return ""
-                elif deg == 180:
-                    return "-"
-                else:
-                    return f"({deg} ^\circ)"
             for i in range(6):
                 for j in range(6):
                     if a == b and i == j:
