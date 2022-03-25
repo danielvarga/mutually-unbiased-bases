@@ -77,24 +77,10 @@ while iteration < iteration_count:
     if iteration == 5000:
         print("turning on projecting to unitaries")
         do_procrustes.assign(True)
-    if iteration == 10000 and loss > 0.01:
+    if iteration == 6000 and loss > 0.01:
         print("not promising, terminating")
         exit()
     iteration += 1
 
 
-np.save("triplet_mub_%03d.npy" % run_id, var.numpy())
-
-'''
-u0 = var[0].numpy()
-u1 = var[1].numpy()
-
-print("----\n|A† A|")
-print(np.abs(np.conjugate(u0.T) @ u0))
-print("----\n√n |A† B|")
-print(n ** 0.5 * np.abs(np.conjugate(u0.T) @ u1))
-print("----\nA")
-print(u0)
-print("----\nB")
-print(u1)
-'''
+np.save("triplets/triplet_mub_%05d.npy" % run_id, var.numpy())
