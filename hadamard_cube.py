@@ -133,6 +133,10 @@ def verify_sum(v):
     assert np.isclose(v.sum(), 1, atol=2e-4)
 
 
+def angler(x):
+    return np.angle(x) * 180 / np.pi
+
+
 def hadamard_cube(a, pad_with_id=True):
     n = 6
     if pad_with_id:
@@ -160,6 +164,7 @@ a = np.load(filename)
 for i in range(len(a)):
     verify_hadamard(a[i])
 
+'''
 for i in range(len(a)):
     print("unitary", i)
     print(np.conjugate(a[i].T) @ a[i])
@@ -170,7 +175,7 @@ for i in range(len(a)):
 
 print("unbiased to each other")
 print(np.abs(np.conjugate(a[0].T) @ a[1]))
-
+'''
 
 def verify_cube_properties(c):
     for i in range(6):
@@ -206,7 +211,7 @@ def visualize(c):
                 z = centre
                 scalprod = 0
                 for k in range(n):
-                    use_segments = True
+                    use_segments = False
                     if not use_segments:
                         z = centre
                     delta = c[row, col, k]
@@ -229,8 +234,56 @@ def visualize(c):
         # plt.show()
 
 
+if len(sys.argv[1:]) > 1:
+    filenames = sys.argv[1:]
+    cs = []
+    kept = []
+    for filename in filenames:
+        a = np.load(filename)
+        c = hadamard_cube(a)
+        try:
+            verify_cube_properties(c)
+            cs.append(c)
+            kept.append(filename)
+        except:
+            pass
+    size_rounded = int(len(cs) ** 0.5)
+    cs = cs[:size_rounded * size_rounded]
+    fig, axes = plt.subplots(size_rounded, size_rounded, figsize=(20, 20))
+    axes = [ax for axline in axes for ax in axline]
+    sq6 = 1 / 6 ** 0.5 + 0.02
+    for ax, c, filename in zip(axes, cs, kept):
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+        ax.set_xlim((-sq6, sq6))
+        ax.set_ylim((-sq6, sq6))
+        ax.set_aspect('equal')
+        ax.set_title(filename)
+        ax.scatter(c.flatten().real, c.flatten().imag, s=0.5)
+    plt.savefig("many_triplets_b.pdf")
+    exit()
+
+
 c = hadamard_cube(a)
 verify_cube_properties(c)
+
+
+print(angler(a))
+exit()
+
+
+# dead code, because there are NO nice angles.
+def nice_angles(c):
+    div = c[:, None] / c[None, :]
+    n = 1
+    dn = div ** n
+    # these are all simply repeat elements, first roots of unity:
+    print("nice ratios between Hadamard cube elements", np.isclose(dn, 1, atol=1e-4).astype(int).sum())
+
+
+# nice_angles(c) ; exit()
+
+print(angler(c))
 
 visualize(c) ; exit()
 
@@ -241,11 +294,7 @@ coords0, coords1, coords2 = np.meshgrid(indcs, indcs, indcs)
 plt.scatter(c.flatten().real, c.flatten().imag, s=(coords0.flatten() + 1) ** 2, c=coords1.flatten(), alpha=0.3)
 plt.show()
 
-
-
 exit()
-
-
 
 
 
