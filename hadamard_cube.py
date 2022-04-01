@@ -2,6 +2,9 @@ import sys
 import numpy as np
 from itertools import permutations
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+from matplotlib.collections import PatchCollection
+from matplotlib.lines import Line2D
 
 
 TP = 2 * np.pi
@@ -192,10 +195,20 @@ def verify_cube_properties(c):
             verify_sum(c[j, :, i])
 
 
+def visualize_clusters(c):
+    n = 6
+    N = 10000
+    bins = np.abs(N * np.angle(c)).astype(int)
+    vals, cnts = np.unique(bins.flatten(), return_counts=True)
+    assert np.all(cnts == 6)
+    dists = bins[..., None] - vals[None, :]
+    print(dists.shape)
+    close = np.isclose(dists, 0)
+    which = np.argmax(close, axis=3)
+    print(which)
+
+
 def visualize(c):
-    from matplotlib.patches import Circle
-    from matplotlib.collections import PatchCollection
-    from matplotlib.lines import Line2D
     cmap = plt.cm.viridis
 
     n = 6
@@ -264,28 +277,24 @@ if len(sys.argv[1:]) > 1:
     exit()
 
 
-c = hadamard_cube(a)
-verify_cube_properties(c)
-
-
-print(angler(a))
-exit()
-
-
 # dead code, because there are NO nice angles.
 def nice_angles(c):
     div = c[:, None] / c[None, :]
-    n = 1
+    n = 24
     dn = div ** n
     # these are all simply repeat elements, first roots of unity:
     print("nice ratios between Hadamard cube elements", np.isclose(dn, 1, atol=1e-4).astype(int).sum())
 
 
-# nice_angles(c) ; exit()
+c = hadamard_cube(a)
+verify_cube_properties(c)
 
-print(angler(c))
+print(angler(c)) ; exit()
 
-visualize(c) ; exit()
+# visualize(c) ; exit()
+
+
+visualize_clusters(c) ; exit()
 
 
 indcs = np.arange(6, dtype=int)
