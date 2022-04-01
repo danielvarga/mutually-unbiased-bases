@@ -6,155 +6,11 @@ from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
-
-TP = 2 * np.pi
-TIP = 2j * np.pi
-W = np.exp(TIP / 3)
-
-
-
-# x and y are phases. this is exactly formula (3) in https://arxiv.org/pdf/0902.0882.pdf
-# not sure about numerical precision when doing (sixth ** 5) instead of -W.
-def canonical_fourier(x, y):
-    ws = np.ones((6, 6), dtype=np.complex128)
-    ws[1:6:3, 1:6:2] *= x
-    ws[2:6:3, 1:6:2] *= y
-    sixth = - np.conjugate(W)
-    for i in range(1, 6):
-        for j in range(1, 6):
-            ws[i, j] *= sixth ** ((i * j) % 6)
-    return ws
-
-
-def transform(b1, b2):
-    ps = list(permutations(range(6)))
-    bestdist = 1e9
-    bestp1 = None
-    bestp2 = None
-    for p1 in ps:
-        for p2 in ps:
-            b1p = b1[p1, :]
-            b1p = b1p[:, p2]
-            b1p /= b1p[0:1, :]
-            b1p /= b1p[:, 0:1]
-            dist = np.abs(b1p - b2).sum()
-            if dist < bestdist:
-                bestdist = dist
-                bestp1 = p1
-                bestp2 = p2
-    # phases are not provided, because i've only encountered
-    # F(x,y) -> F(x', y') transformations where both the left and the
-    # right diagonals were the identity matrix.
-    # but they are easy to get from the returned data.
-    # never tested, tbh:
-    b1p = b1[bestp1, :]
-    b1p = b1p[:, bestp2]
-    colphases = b1p[0, :]
-    b1p /= b1p[0:1, :]
-    rowphases = b1p[:, 0]
-    return bestp1, bestp2, bestdist
-
-
-def the_true_decomposition(b_orig, set_first, set_second):
-    atol = 1e-4
-    b = b_orig.copy()
-    assert np.allclose(np.abs(b), np.ones_like(b), atol=atol), "b should be sqrt(6) times a Hadamard basis."
-    d_left1 = b[:, 0].copy()
-    b /= b[:, 0:1]
-    d_right1 = b[0, :].copy()
-    b /= b[0:1, :]
-    b_reconstruct1 = np.diag(d_left1) @ b @ np.diag(d_right1)
-    assert np.allclose(b_reconstruct1, b_orig, atol=atol)
-
-    # we are looking for elements that are far from ALL of 1, -1, W, W^2.
-    mask = np.abs(b - 1) * np.abs(b - W) * np.abs(b - W ** 2) * np.abs(b + 1)
-    # our goal is two find two such elements so that they are not the negative of each other.
-    # that has many solutions, but any will suffice as (x, y).
-    # this can probably fail when x and y are 6th roots of unity, or very close, but what the heck.
-    ind = np.unravel_index(np.argsort(-mask, axis=None), mask.shape)
-    # for any i, mask[ind[0][i], ind[1][j]] is the element that's the i-th largest in the whole 2d array.
-    # https://stackoverflow.com/a/64338853/383313
-    x = b[ind[0][0], ind[1][0]]
-    col_x = ind[1][0]
-    # let's take another element from x's column that is far from -x.
-    # namely, the next possible one in this ordering:
-    for i in range(1, len(ind[0])):
-        col_y = ind[1][i]
-        if col_y == col_x:
-            y = b[ind[0][i], ind[1][i]]
-            if not np.isclose(-y, x):
-                break
-
-    if x.imag < 0:
-        x = np.conjugate(x)
-    assert set_first or set_second, "set at least one of them"
-    first = x if set_first else 1
-    second = x if set_second else 1
-
-    candidate_basis = canonical_fourier(first, second)
-    p1, p2, dist = transform(candidate_basis, b)
-    b_reconstruct2 = candidate_basis[p1, :]
-    b_reconstruct2 = b_reconstruct2[:, p2]
-    d_left2 = np.conjugate(b_reconstruct2[:, 0])
-    b_reconstruct2 /= b_reconstruct2[:, 0:1]
-    d_right2 = np.conjugate(b_reconstruct2[0, :])
-    b_reconstruct2 /= b_reconstruct2[0:1, :]
-    assert np.allclose(b_reconstruct2, b, atol=atol), f"{b_reconstruct2}\n{b}"
-
-    p_left = np.eye(6)[p1, :]
-    p_right = np.eye(6)[:, p2]
-    b_reconstruct3 = np.diag(d_left2) @ p_left @ candidate_basis @ p_right @ np.diag(d_right2)
-    assert np.allclose(b_reconstruct3, b, atol=atol)
-
-    # b is not to be confused with b_orig. now we have to compose everything to get b_orig:
-    d_left = np.diag(d_left1) @ np.diag(d_left2)
-    d_right = np.diag(d_right2) @ np.diag(d_right1)
-    b_reconstruct4 = d_left @ p_left @ candidate_basis @ p_right @ d_right
-    assert np.allclose(b_orig, b_reconstruct4, atol=atol) # b_orig now!
-    return d_left, p_left, first, second, p_right, d_right, dist
-
-
-def phase_to_deg(x):
-    return np.angle(x) / np.pi * 180
-
-
-def verify_hadamard(b):
-    n = len(b)
-    assert np.allclose(np.abs(b) ** 2, 1 / n, atol=1e-4)
-    prod = np.conjugate(b.T) @ b
-    assert np.allclose(prod, np.eye(n), atol=1e-4)
-
-
-def gently_verify_hadamard(b):
-    n = len(b)
-    print(np.abs(b) ** 2 * n - 1)
-    prod = np.conjugate(b.T) @ b
-    print(prod - np.eye(n))
+from base import *
 
 
 def verify_sum(v):
     assert np.isclose(v.sum(), 1, atol=2e-4)
-
-
-def angler(x):
-    return np.angle(x) * 180 / np.pi
-
-
-def hadamard_cube(a, pad_with_id=True):
-    n = 6
-    if pad_with_id:
-        a = np.stack([np.eye(n, dtype=np.complex128), a[0], a[1]])
-    assert a.shape == (3, n, n)
-    # vectorize maybe? who cares?
-    c = np.zeros((n, n, n), dtype=np.complex128)
-    for i in range(n):
-        for j in range(n):
-            for k in range(n):
-                c[i, j, k] = \
-                    (np.conjugate(a[0, :, i]) @ a[1, :, j]) * \
-                    (np.conjugate(a[1, :, j]) @ a[2, :, k]) * \
-                    (np.conjugate(a[2, :, k]) @ a[0, :, i])
-    return 6 * c
 
 
 # np.set_printoptions(precision=12, suppress=True, linewidth=100000)
@@ -195,17 +51,25 @@ def verify_cube_properties(c):
             verify_sum(c[j, :, i])
 
 
-def visualize_clusters(c):
+def visualize_clusters(c, group_conjugates=True):
     n = 6
     N = 10000
-    bins = np.abs(N * np.angle(c)).astype(int)
+    bins = (N * np.angle(c)).astype(int)
+    if group_conjugates:
+        bins = np.abs(bins)
     vals, cnts = np.unique(bins.flatten(), return_counts=True)
-    assert np.all(cnts == 6)
+
+    # for a full cube every color appears 6 times.
+    #   (or 3 times if conjugates are not grouped)
+    # for a single slice it's either all distinct or
+    # every color appears 3 times.
+    # for sporadic Fouriers (6th roots of unity) it's 12 or 6 per color.
+    assert np.all(cnts == 6) or np.all(cnts == 1) or np.all(cnts == 3) \
+        or sorted(cnts) == [6, 6, 12, 12]
     dists = bins[..., None] - vals[None, :]
-    print(dists.shape)
     close = np.isclose(dists, 0)
-    which = np.argmax(close, axis=3)
-    print(which)
+    which = np.argmax(close, axis=-1)
+    return which
 
 
 def visualize(c):
@@ -245,6 +109,17 @@ def visualize(c):
         plt.ylim((-3, 18))
         plt.savefig("cube.pdf")
         # plt.show()
+
+
+def visualize_3d(c):
+    from mpl_toolkits.mplot3d import axes3d
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+
+    x, y, z = np.meshgrid(np.arange(6), np.arange(6), np.arange(6))
+    w = np.zeros_like(x)
+    ax.quiver(x, y, z, c.real, c.imag, w, length=0.5)
+    plt.show()
 
 
 if len(sys.argv[1:]) > 1:
@@ -287,14 +162,40 @@ def nice_angles(c):
 
 
 c = hadamard_cube(a)
+
 verify_cube_properties(c)
+
+
+
+slices = [c[0, :, :], c[:, 0, :], c[:, :, 0]]
+for s in slices:
+    print("====")
+    print(angler(s))
+    print(visualize_clusters(s, group_conjugates=False))
+    try:
+        find_blocks(s)
+        print("^^^ Fourier")
+        continue
+    except:
+        pass
+    try:
+        find_blocks(s.T)
+        print("^^^ Fourier transposed")
+        continue
+    except:
+        pass
+    print("^^^ not Fourier")
+exit()
+
+
+visualize_3d(c) ; exit()
 
 print(angler(c)) ; exit()
 
 # visualize(c) ; exit()
 
 
-visualize_clusters(c) ; exit()
+print(visualize_clusters(c, group_conjugates=False)) ; exit()
 
 
 indcs = np.arange(6, dtype=int)
