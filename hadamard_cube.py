@@ -161,30 +161,107 @@ def nice_angles(c):
     print("nice ratios between Hadamard cube elements", np.isclose(dn, 1, atol=1e-4).astype(int).sum())
 
 
-c = hadamard_cube(a)
 
+print("abs A", np.abs(a[0]))
+print("abs B", np.abs(a[1]))
+print("abs A^dag B", np.abs(trans(a[0], a[1])))
+
+
+a = np.stack([np.eye(6, dtype=np.complex128), a[0], a[1]])
+
+
+
+
+c = hadamard_cube(a)
 verify_cube_properties(c)
+
+t = trans(a[1], a[2])
+verify_hadamard(t)
+print("A^dag B", angler(t))
+sx = c[0, :, :]
+sy = c[:, 0, :]
+sz = c[:, :, 0]
+verify_hadamard(sx)
+verify_hadamard(sy)
+verify_hadamard(sz)
+
+print("sx aka c[0, :, :]", angler(sx))
+
+
+assert is_equivalent(c[0, :, :], c[1, :, :])
+assert is_equivalent(c[:, 0, :], c[:, 1, :])
+assert is_equivalent(c[:, :, 0], c[:, :, 1])
+print("parallel slices are equivalent")
+
+
+for oneidx, one in zip(["A", "B", "A^dag B"], [a[1], a[2], trans(a[1], a[2])]):
+    for otheridx, other in zip(["sx", "sy", "sz"], [sx, sy, sz]):
+        if is_equivalent(one, other):
+            print("equivalent:", oneidx, otheridx)
+
+exit()
+
+
+
+
+def slic(c, direction, coord):
+    if direction == 0:
+        return c[coord, :, :]
+    elif direction == 1:
+        return c[:, coord, :]
+    elif direction == 2:
+        return c[:, :, coord]
+    assert False
+
+
+slices = [c[0, :, :], c[:, 0, :], c[:, :, 0]]
+for direction in range(3):
+    for coord in range(6):
+        # print("====")
+        # print(angler(s))
+        # print(visualize_clusters(s, group_conjugates=False))
+        s = slic(c, direction, coord)
+        result = find_blocks(s)
+        if result is not None:
+            print("F ", end='')
+            continue
+        result = find_blocks(s.T)
+        if result is not None:
+            print("FT ", end='')
+            continue
+        print("N ", end='')
+        verify_hadamard(s)
+        print()
+        print(angler(s))
+        exit()
+    print()
+exit()
+
 
 
 
 slices = [c[0, :, :], c[:, 0, :], c[:, :, 0]]
 for s in slices:
-    print("====")
-    print(angler(s))
-    print(visualize_clusters(s, group_conjugates=False))
+    # print("====")
+    # print(angler(s))
+    # print(visualize_clusters(s, group_conjugates=False))
     try:
         find_blocks(s)
-        print("^^^ Fourier")
+        # print("^^^ Fourier")
+        print("F ", end='')
         continue
     except:
         pass
     try:
         find_blocks(s.T)
-        print("^^^ Fourier transposed")
+        # print("^^^ Fourier transposed")
+        print("FT ", end='')
         continue
     except:
         pass
-    print("^^^ not Fourier")
+    # print("^^^ not Fourier")
+    print("N ", end='')
+print()
 exit()
 
 
