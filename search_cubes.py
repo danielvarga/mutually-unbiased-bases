@@ -61,6 +61,21 @@ def slice_2d(c, direction, coord):
         return c[:, :, coord]
     assert False
 
+
+def slice_1d(c, direction, coord1, coord2):
+    if direction == 0:
+        return c[coord1, coord2, :]
+    elif direction == 1:
+        return c[:, coord1, coord2]
+    elif direction == 2:
+        return c[coord2, :, coord1]
+    assert False
+
+
+def slice_1d_loss(v, alpha=1 / 6):
+    return alpha * closeness(tf.reduce_sum(v), 1)
+
+
 def loss_fn():
     alpha = 1.0
     terms = []
@@ -69,11 +84,15 @@ def loss_fn():
             s = slice_2d(var, direction, coord)
             l = hadamard_loss(s, alpha=alpha)
             terms.append(l)
+    for direction in range(3):
+        one_dim_sums = tf.reduce_sum(var, axis=direction)
+        l = 1 / 36 * closeness(one_dim_sums, 1)
+        terms.append(l)
     return sum(terms)
 
-opt = tf.keras.optimizers.SGD(learning_rate=0.004)
+opt = tf.keras.optimizers.SGD(learning_rate=0.02)
 
-iteration_count = 5001
+iteration_count = 10001
 iteration = 0
 while iteration < iteration_count:
     with tf.GradientTape() as tape:
@@ -85,10 +104,10 @@ while iteration < iteration_count:
     if iteration % 100 == 0:
         print(iteration, loss)
         sys.stdout.flush()
-    if iteration == 2000:
+    if iteration == 5000:
         print("turning on projecting to unitaries")
         do_procrustes.assign(True)
-    if iteration == 3000 and loss > 0.01:
+    if iteration == 30000 and loss > 0.01:
         print("not promising, terminating")
         exit()
     iteration += 1

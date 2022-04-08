@@ -29,6 +29,13 @@ def canonical_fourier(x, y):
     return ws
 
 
+def dephase(bb):
+    b = bb.copy()
+    b /= b[0, :]
+    b /= b[:, 0][:, np.newaxis]
+    return b
+
+
 def graph_to_partition(g):
     g = sorted(g)
     sets = []

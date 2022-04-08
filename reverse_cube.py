@@ -10,8 +10,9 @@ from base import *
 
 
 def verify_sum(v):
-    print(np.abs(v.sum()))
-    # assert np.isclose(v.sum(), 1, atol=2e-4)
+    # print(np.abs(v.sum()))
+    assert np.isclose(v.sum(), 1, atol=2e-4)
+
 
 # np.set_printoptions(precision=12, suppress=True, linewidth=100000)
 np.set_printoptions(precision=5, suppress=True)
@@ -34,7 +35,7 @@ def verify_cube_properties(c):
 
 filename = sys.argv[1]
 
-from_triplet = True
+from_triplet = False
 if from_triplet:
     # triplets/triplet_mub_00018.npy
     a = np.load(filename)
@@ -46,3 +47,20 @@ else:
 
 
 verify_cube_properties(c)
+
+print(c)
+print("====")
+for i in range(6):
+    print(angler(dephase(c[i, :, :])))
+print("----")
+for i in range(6):
+    print(angler(dephase(c[:, i, :])))
+print("----")
+for i in range(6):
+    print(angler(dephase(c[:, :, i])))
+print("----")
+
+
+print(find_blocks(c[0, :, :]))
+print(find_blocks(c[:, 0, :]))
+print(find_blocks(c[:, :, 0]))
