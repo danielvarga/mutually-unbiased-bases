@@ -36,7 +36,7 @@ def conditional_many_procrustes(xs):
 mat_r = tf.random.uniform([n, n, n], dtype=tf.float64)
 mat_i = tf.random.uniform([n, n, n], dtype=tf.float64)
 mat = 2 * tf.complex(mat_r, mat_i) - 1
-mat = mat / tf.complex(tf.abs(mat), tf.zeros((n, n, n), dtype=tf.float64))
+mat = mat / tf.complex(tf.abs(mat), tf.zeros((n, n, n), dtype=tf.float64)) / 6
 
 var = tf.Variable(mat, trainable=True, constraint=conditional_many_procrustes)
 
@@ -73,7 +73,7 @@ def loss_fn():
 
 opt = tf.keras.optimizers.SGD(learning_rate=0.004)
 
-iteration_count = 20001
+iteration_count = 5001
 iteration = 0
 while iteration < iteration_count:
     with tf.GradientTape() as tape:
@@ -85,13 +85,13 @@ while iteration < iteration_count:
     if iteration % 100 == 0:
         print(iteration, loss)
         sys.stdout.flush()
-    if iteration == 5000:
+    if iteration == 2000:
         print("turning on projecting to unitaries")
         do_procrustes.assign(True)
-    if iteration == 6000 and loss > 0.01:
+    if iteration == 3000 and loss > 0.01:
         print("not promising, terminating")
         exit()
     iteration += 1
 
 
-np.save("triplets/triplet_mub_%05d.npy" % run_id, var.numpy())
+np.save("cube_%05d.npy" % run_id, var.numpy())
