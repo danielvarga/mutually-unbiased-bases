@@ -64,3 +64,7 @@ print("----")
 print(find_blocks(c[0, :, :]))
 print(find_blocks(c[:, 0, :]))
 print(find_blocks(c[:, :, 0]))
+
+print(get_canonizer(c[0, :, :], None, None))
+print(get_canonizer(c[:, 0, :], None, None))
+print(get_canonizer(c[:, :, 0], None, None))

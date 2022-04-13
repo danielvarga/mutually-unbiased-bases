@@ -139,12 +139,10 @@ def get_canonizer(b, bipart_col, tripart_row):
     print("bipart_col", bipart_col, "tripart_row", tripart_row)
     col_perms = ps # [perm for perm in ps if is_compatible(perm, bipart_col)]
     row_perms = ps # [perm for perm in ps if is_compatible(perm, tripart_row)]
-    print(len(col_perms), len(row_perms))
     for col_perm in col_perms:
         col_perm_m = np.eye(6)[:, col_perm]
         for row_perm in row_perms:
             row_perm_m = np.eye(6)[row_perm, :]
-            print(col_perm, row_perm)
             b_permuted = row_perm_m @ b @ col_perm_m
             b_dephased, Dl, Dr = complex_dephase(b_permuted)
             p = get_complex_fourier(b_dephased)
@@ -154,6 +152,14 @@ def get_canonizer(b, bipart_col, tripart_row):
                 # print(angler(canonical_fourier(g['x'], g['y'])))
                 return g
     return None
+
+
+
+# equivalent without permutations
+def is_phase_equivalent(b1, b2, atol=1e-4):
+    b1, _, _ = complex_dephase(b1)
+    b2, _, _ = complex_dephase(b2)
+    return np.allclose(b1, b2, atol=atol)
 
 
 def is_equivalent(b1, b2):
@@ -206,11 +212,28 @@ def phase_to_deg(x):
     return np.angle(x) / np.pi * 180
 
 
-def verify_hadamard(b):
+def verify_hadamard(b, atol=1e-4):
     n = len(b)
-    assert np.allclose(np.abs(b) ** 2, 1 / n, atol=1e-4)
+    assert np.allclose(np.abs(b) ** 2, 1 / n, atol=atol)
     prod = np.conjugate(b.T) @ b
-    assert np.allclose(prod, np.eye(n), atol=1e-4)
+    assert np.allclose(prod, np.eye(n), atol=atol)
+
+
+def verify_unbiased(b1, b2, atol=1e-4):
+    n = len(b1)
+    prod = trans(b1, b2)
+    assert np.allclose(np.abs(prod), n ** -0.5, atol=atol)
+
+
+def verify_mub(a, atol=1e-4):
+    m, n, _ = a.shape
+
+    for b in a:
+        prod = np.conjugate(b.T) @ b
+        assert np.allclose(prod, np.eye(n), atol=atol)
+    for i in range(m):
+        for j in range(i + 1, m):
+            verify_unbiased(a[i], a[j], atol=atol)
 
 
 def gently_verify_hadamard(b):

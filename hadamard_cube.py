@@ -13,15 +13,6 @@ def verify_sum(v):
     assert np.isclose(v.sum(), 1, atol=2e-4)
 
 
-# np.set_printoptions(precision=12, suppress=True, linewidth=100000)
-np.set_printoptions(precision=5, suppress=True)
-
-# triplet_mub_015.npy
-filename = sys.argv[1]
-a = np.load(filename)
-
-for i in range(len(a)):
-    verify_hadamard(a[i])
 
 '''
 for i in range(len(a)):
@@ -36,6 +27,23 @@ print("unbiased to each other")
 print(np.abs(np.conjugate(a[0].T) @ a[1]))
 '''
 
+
+def verify_phase_equivalence(b1, b2, atol=1e-4):
+    assert is_phase_equivalent(b1, b2, atol=atol)
+
+
+# equivalent without permutations
+def verify_phase_equivalence_overkill(b1, b2, atol=1e-4):
+    rat = b2 / b1
+    u, s, vh = np.linalg.svd(rat)
+    assert np.isclose(s[0], 6)
+    uu = u[:, 0] * 6 ** 0.5
+    vv = vh[0, :] * 6 ** 0.5
+    assert np.allclose(np.outer(uu, vv), rat, atol=atol)
+    assert np.allclose(np.diag(uu) @ b1 @ np.diag(vv), b2, atol=atol)
+    return uu, vv
+
+
 def verify_cube_properties(c):
     for i in range(6):
         # print("verifying 2D slices", i)
@@ -49,6 +57,18 @@ def verify_cube_properties(c):
             verify_sum(c[i, j, :])
             verify_sum(c[:, i, j])
             verify_sum(c[j, :, i])
+
+    for i in range(6):
+        # print("verifying equivalence of parallel slices", i)
+        b1 = c[0, :, :]
+        b2 = c[i, :, :]
+        verify_phase_equivalence(b1, b2)
+        b1 = c[:, 0, :]
+        b2 = c[:, i, :]
+        verify_phase_equivalence(b1, b2)
+        b1 = c[:, :, 0]
+        b2 = c[:, :, i]
+        verify_phase_equivalence(b1, b2)
 
 
 def visualize_clusters(c, group_conjugates=True):
@@ -162,37 +182,100 @@ def nice_angles(c):
 
 
 
-print("abs A", np.abs(a[0]))
-print("abs B", np.abs(a[1]))
-print("abs A^dag B", np.abs(trans(a[0], a[1])))
 
+# np.set_printoptions(precision=12, suppress=True, linewidth=100000)
+np.set_printoptions(precision=5, suppress=True)
+
+# triplet_mub_015.npy
+filename = sys.argv[1]
+a = np.load(filename)
 
 a = np.stack([np.eye(6, dtype=np.complex128), a[0], a[1]])
 
+for i in range(1, len(a)):
+    verify_hadamard(a[i])
 
-
+verify_mub(a)
 
 c = hadamard_cube(a)
+
 verify_cube_properties(c)
 
-t = trans(a[1], a[2])
-verify_hadamard(t)
-print("A^dag B", angler(t))
+
+if filename == "triplets/triplet_mub_00018.npy":
+    x_perm = [0, 1, 2, 3, 4, 5]
+    y_perm = [0, 4, 1, 2, 3, 5]
+    z_perm = [0, 4, 2, 3, 5, 1]
+elif filename == "triplets/triplet_mub_00171.npy":
+    x_perm = [0, 2, 1, 5, 3, 4]
+    y_perm = [0, 1, 2, 3, 4, 5]
+    z_perm = [0, 5, 1, 2, 4, 3]
+else:
+    print("WARNING: no manually computed permutations available")
+    x_perm = y_perm = z_perm = range(6)
+c = c[x_perm, :, :]
+c = c[:, y_perm, :]
+c = c[:, :, z_perm]
+
+verify_cube_properties(c)
+
+
+def test_cube_invariances(a_orig):
+    a = a_orig.copy()
+    verify_mub(a)
+    c1 = hadamard_cube(a)
+    col_perm = [1, 0, 3, 4, 2, 5]
+    col_perm_m = np.eye(6)[:, col_perm]
+    a[0] = a[0] @ col_perm_m
+    c2 = hadamard_cube(a)
+    c1_permed = c1[col_perm, :, :]
+    assert np.allclose(c1_permed, c2)
+    print("passed right permutation test: it permutes cube yz slices")
+
+    a = a_orig.copy()
+    c1 = hadamard_cube(a)
+    row_perm = [1, 0, 3, 4, 2, 5]
+    row_perm_m = np.eye(6)[row_perm, :]
+    for i in range(3):
+        a[i] = row_perm_m @ a[i]
+    c2 = hadamard_cube(a)
+    assert np.allclose(c1, c2)
+    print("passed left (shared) permutation test: it does not change cube")
+
+    # phase = np.exp(2j * np.pi * np.random.uniform() * np.ones(6))
+    phase = np.exp(2j * np.pi * np.random.uniform(size=6))
+    phase_m = np.diag(phase)
+
+    a = a_orig.copy()
+    c1 = hadamard_cube(a)
+    for i in range(3):
+        a[i] = phase_m @ a[i]
+    verify_mub(a)
+    c2 = hadamard_cube(a)
+    assert np.allclose(c1, c2)
+    print("passed left (shared) phase test: it does not change the cube")
+
+    a = a_orig.copy()
+    c1 = hadamard_cube(a)
+    a[0] = a[0] @ phase_m
+    c2 = hadamard_cube(a)
+    assert np.allclose(c1, c2)
+    print("passed right phase test: it does not change the cube")
+
+
+# that's just a one-time validation of lemmata about the cube,
+# need not run every time:
+# test_cube_invariances(a) ; exit()
+
+
+
+
 sx = c[0, :, :]
 sy = c[:, 0, :]
 sz = c[:, :, 0]
 verify_hadamard(sx)
 verify_hadamard(sy)
 verify_hadamard(sz)
-
-print("sx aka c[0, :, :]", angler(sx))
-
-
-assert is_equivalent(c[0, :, :], c[1, :, :])
-assert is_equivalent(c[:, 0, :], c[:, 1, :])
-assert is_equivalent(c[:, :, 0], c[:, :, 1])
-print("parallel slices are equivalent")
-
 
 for oneidx, one in zip(["A", "B", "A^dag B"], [a[1], a[2], trans(a[1], a[2])]):
     for otheridx, other in zip(["sx", "sy", "sz"], [sx, sy, sz]):
