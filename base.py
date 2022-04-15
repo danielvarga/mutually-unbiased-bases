@@ -85,11 +85,11 @@ def find_partitions(b):
 
 
 # For M complex Hadamard, returns M dephased.
-def complex_dephase(M):
+def complex_dephase(M, row=0, col=0):
     M = M.copy()
-    Dr = M[0, :].copy()
+    Dr = M[row, :].copy()
     M /= Dr
-    Dl = M[:, 0][:, np.newaxis].copy()
+    Dl = M[:, col][:, np.newaxis].copy()
     M /= Dl
     return M, Dl, Dr
 
@@ -134,9 +134,8 @@ def test_is_compatible():
 # test_is_compatible() ; exit()
 
 
-def get_canonizer(b, bipart_col, tripart_row):
+def get_canonizer(b, bipart_col=None, tripart_row=None):
     ps = list(permutations(range(6)))
-    print("bipart_col", bipart_col, "tripart_row", tripart_row)
     col_perms = ps # [perm for perm in ps if is_compatible(perm, bipart_col)]
     row_perms = ps # [perm for perm in ps if is_compatible(perm, tripart_row)]
     for col_perm in col_perms:
@@ -152,7 +151,6 @@ def get_canonizer(b, bipart_col, tripart_row):
                 # print(angler(canonical_fourier(g['x'], g['y'])))
                 return g
     return None
-
 
 
 # equivalent without permutations
@@ -174,6 +172,71 @@ def is_equivalent(b1, b2):
             if np.allclose(b1_dephased, b2_dephased, atol=1e-4):
                 return True
     return False
+
+
+# Tries to phase M1 into M2. If possible, returns the phases, else None.
+def rephase(M1, M2, atol=1e-4):
+    M1 = M1.copy()
+    Dr = M1[0, :].copy() / M2[0,:].copy()
+    M1 /= Dr
+    Dl = M1[:, 0][:, np.newaxis].copy() / M2[:, 0][:, np.newaxis].copy()
+    M1 /= Dl
+    if np.allclose(M1, M2, atol=atol):
+        return Dl, Dr
+    else:
+        return None
+
+
+# Checks if M1, M2 Hadamard matrices are equivalent.
+def equivalent_hadamard_brute_force(M1, M2, atol=1e-4):
+    ps = list(permutations(range(6)))
+    for perm1 in ps:
+        perm1m = np.eye(6)[perm1, :]
+        for perm2 in ps:
+            perm2m = np.eye(6)[perm2, :]
+            M1_permuted = perm1m @ M1 @ perm2m
+            p = rephase(M1_permuted, M2, atol=atol)
+            if p != None:
+                g = {'d_l' : p[0], 'd_r' : p[1], 'p_l' : perm1, 'p_r' : perm2}
+                return g
+    return None
+
+
+def lex(b):
+    return np.lexsort(b.T[::-1])
+
+
+def canonically_permute(b):
+    i = list(range(6))
+    changed = True
+    row_perm = np.arange(6)
+    col_perm = np.arange(6)
+    while changed:
+        changed = False
+        perm = lex(b)
+        b = b[perm]
+        row_perm = row_perm[perm]
+        if np.any(perm != i):
+            changed = True
+        perm = lex(b.T)
+        b = b.T[perm].T
+        col_perm = col_perm[perm]
+        if np.any(perm != i):
+            changed = True
+    return b, row_perm, col_perm
+
+
+def equivalent_hadamard(b1, b2, atol=1e-4):
+    b1, d1l, d1r = complex_dephase(b1)
+    an1, row_perm1, col_perm1 = canonically_permute(np.angle(b1) + np.pi)
+    for row in range(6):
+        for col in range(6):
+            b2dephased, d2l, d2r = complex_dephase(b2, row=row, col=col)
+            an2, row_perm2, col_perm2 = canonically_permute(np.angle(b2dephased) + np.pi)
+            if np.allclose(np.exp(1j * an1), np.exp(1j * an2), atol=atol):
+                # TODO should figure out the transformation.
+                return True
+    return None
 
 
 def find_blocks(b, allow_transposal=False):

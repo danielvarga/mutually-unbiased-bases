@@ -277,10 +277,33 @@ verify_hadamard(sx)
 verify_hadamard(sy)
 verify_hadamard(sz)
 
+b1 = sy
+b2 = sz
+
+'''
+for b in [sx, sy, sz]:
+    print(angler(b))
+
+f1 = get_canonizer(b1)
+f2 = get_canonizer(b2)
+
+assert f1 is not None
+assert f2 is not None
+print(f1)
+print(f2)
+'''
+
+'''
+prod = trans(b1, b2)
+print(is_phase_equivalent(prod, sx))
+'''
+
 for oneidx, one in zip(["A", "B", "A^dag B"], [a[1], a[2], trans(a[1], a[2])]):
     for otheridx, other in zip(["sx", "sy", "sz"], [sx, sy, sz]):
-        if is_equivalent(one, other):
-            print("equivalent:", oneidx, otheridx)
+        eq = equivalent_hadamard_brute_force(one, other, atol=1e-2)
+        if eq is not None:
+            print("equivalent:", oneidx, otheridx, eq)
+
 
 exit()
 
