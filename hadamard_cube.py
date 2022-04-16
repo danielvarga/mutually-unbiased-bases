@@ -173,8 +173,8 @@ def verify_surprising_cube_properties(c):
         assert len(bipart_col) == 2 and len(bipart_col[0]) == 3 and len(bipart_col[1]) == 3
         assert len(tripart_row) == 3 and len(tripart_row[0]) == 2 and len(tripart_row[1]) == 2 and len(tripart_row[2]) == 2
         is_transposeds.append(is_transposed)
-    assert is_transposeds[0] == is_transposeds[1]
-    print("Szollosi")
+    # assert is_transposeds[0] == is_transposeds[1]
+    print("Szollosi", " ".join("F" if not is_transposed else "FT" for is_transposed in is_transposeds))
 
 
 verify_surprising_cube_properties(c) ; exit()
