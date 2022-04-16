@@ -140,6 +140,45 @@ c = hadamard_cube(a)
 verify_cube_properties(c)
 
 
+
+def counts(c):
+    N = 100000
+    bins = (N * np.angle(c)).astype(int)
+    bins = np.abs(bins)
+    vals, cnts = np.unique(bins.flatten(), return_counts=True)
+    return cnts
+
+
+def verify_surprising_cube_properties(c):
+    np.set_printoptions(precision=5, suppress=True, linewidth=100000)
+    cnts = counts(c)
+    cnts = -np.sort(-cnts)
+    print(cnts, end=" ")
+    if cnts[0] == 72:
+        assert sorted(cnts) == [36, 36, 72, 72]
+        print("sporadic")
+        return
+    found = False
+    for direction in range(3):
+        s = slic(c, direction, 0)
+        cnts = counts(s)
+        if np.min(cnts) >= 3:
+            found = True
+    assert found
+    is_transposeds = []
+    for d in set(range(3)) - set([direction]):
+        s = slic(c, d, 0)
+        bipart_col, tripart_row, is_transposed = find_blocks(s, allow_transposal=True)
+        assert len(bipart_col) == 2 and len(bipart_col[0]) == 3 and len(bipart_col[1]) == 3
+        assert len(tripart_row) == 3 and len(tripart_row[0]) == 2 and len(tripart_row[1]) == 2 and len(tripart_row[2]) == 2
+        is_transposeds.append(is_transposed)
+    assert is_transposeds[0] == is_transposeds[1]
+    print("Szollosi")
+
+
+verify_surprising_cube_properties(c) ; exit()
+
+
 if filename == "triplets/triplet_mub_00018.npy":
     x_perm = [0, 1, 2, 3, 4, 5]
     y_perm = [0, 4, 1, 2, 3, 5]
@@ -245,17 +284,6 @@ for oneidx, one in zip(["A", "B", "A^dag B"], [a[1], a[2], trans(a[1], a[2])]):
 
 exit()
 
-
-
-
-def slic(c, direction, coord):
-    if direction == 0:
-        return c[coord, :, :]
-    elif direction == 1:
-        return c[:, coord, :]
-    elif direction == 2:
-        return c[:, :, coord]
-    assert False
 
 
 slices = [c[0, :, :], c[:, 0, :], c[:, :, 0]]
