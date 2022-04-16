@@ -153,7 +153,7 @@ def verify_surprising_cube_properties(c):
     np.set_printoptions(precision=5, suppress=True, linewidth=100000)
     cnts = counts(c)
     cnts = -np.sort(-cnts)
-    print(cnts, end=" ")
+    print(cnts, end="\t")
     if cnts[0] == 72:
         assert sorted(cnts) == [36, 36, 72, 72]
         print("sporadic")
@@ -164,6 +164,7 @@ def verify_surprising_cube_properties(c):
         cnts = counts(s)
         if np.min(cnts) >= 3:
             found = True
+            break
     assert found
     is_transposeds = []
     for d in set(range(3)) - set([direction]):

@@ -59,8 +59,7 @@ def partition_to_coloring(sets):
     return c
 
 
-def find_partitions(b):
-    atol = 1e-5
+def find_partitions(b, atol=1e-4):
     verbose = False
     triangle_graph = []
     biangle_graph = []
