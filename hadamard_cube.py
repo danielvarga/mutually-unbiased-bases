@@ -9,68 +9,6 @@ from matplotlib.lines import Line2D
 from base import *
 
 
-def verify_sum(v):
-    assert np.isclose(v.sum(), 1, atol=2e-4)
-
-
-
-'''
-for i in range(len(a)):
-    print("unitary", i)
-    print(np.conjugate(a[i].T) @ a[i])
-
-for i in range(len(a)):
-    print("unbiased to Id", i)
-    print(np.abs(a[i]))
-
-print("unbiased to each other")
-print(np.abs(np.conjugate(a[0].T) @ a[1]))
-'''
-
-
-def verify_phase_equivalence(b1, b2, atol=1e-4):
-    assert is_phase_equivalent(b1, b2, atol=atol)
-
-
-# equivalent without permutations
-def verify_phase_equivalence_overkill(b1, b2, atol=1e-4):
-    rat = b2 / b1
-    u, s, vh = np.linalg.svd(rat)
-    assert np.isclose(s[0], 6)
-    uu = u[:, 0] * 6 ** 0.5
-    vv = vh[0, :] * 6 ** 0.5
-    assert np.allclose(np.outer(uu, vv), rat, atol=atol)
-    assert np.allclose(np.diag(uu) @ b1 @ np.diag(vv), b2, atol=atol)
-    return uu, vv
-
-
-def verify_cube_properties(c):
-    for i in range(6):
-        # print("verifying 2D slices", i)
-        verify_hadamard(c[i, :, :])
-        verify_hadamard(c[:, i, :])
-        verify_hadamard(c[:, :, i])
-
-    for i in range(6):
-        for j in range(6):
-            # print("verifying 1D slices", i, j)
-            verify_sum(c[i, j, :])
-            verify_sum(c[:, i, j])
-            verify_sum(c[j, :, i])
-
-    for i in range(6):
-        # print("verifying equivalence of parallel slices", i)
-        b1 = c[0, :, :]
-        b2 = c[i, :, :]
-        verify_phase_equivalence(b1, b2)
-        b1 = c[:, 0, :]
-        b2 = c[:, i, :]
-        verify_phase_equivalence(b1, b2)
-        b1 = c[:, :, 0]
-        b2 = c[:, :, i]
-        verify_phase_equivalence(b1, b2)
-
-
 def visualize_clusters(c, group_conjugates=True):
     n = 6
     N = 10000
