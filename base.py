@@ -270,6 +270,42 @@ def hadamard_cube(a, pad_with_id=True):
     return 6 * c
 
 
+def counts(c):
+    N = 100000
+    bins = (N * np.angle(c)).astype(int)
+    bins = np.abs(bins)
+    vals, cnts = np.unique(bins.flatten(), return_counts=True)
+    return cnts
+
+
+# For an Hadamard cube make the first direction the distinguished one.
+def distinguished_permute(H):
+    for p in range(3):
+        # print(len(count_elements(H[0, :, :])))
+        if len(counts(H[0, :, :])) == 12:
+            return H
+        else:
+            H = np.transpose(H, axes=[1, 2, 0])
+    return None
+    # print(H)
+    # assert False, 'FAULTY CUBE.'
+
+
+def circulant(firstrow):
+    a, b, c = firstrow
+    return np.array([[a, b, c], [c, a, b], [b, c, a]])
+
+
+def szollosi_original(firstrow):
+    a, b, c, d, e, f = firstrow
+    block1 = circulant([a, b, c])
+    block2 = circulant([d, e, f])
+    block3 = circulant([1/d, 1/f, 1/e])
+    block4 = circulant([-1/a, -1/c, -1/b])
+    blockcirculant = np.block([[block1, block2], [block3, block4]])
+    return blockcirculant
+
+
 def phase_to_deg(x):
     return np.angle(x) / np.pi * 180
 

@@ -124,7 +124,7 @@ def nice_angles(c):
 # np.set_printoptions(precision=12, suppress=True, linewidth=100000)
 np.set_printoptions(precision=5, suppress=True)
 
-# triplet_mub_015.npy
+# triplet_mub_00018.npy
 filename = sys.argv[1]
 a = np.load(filename)
 
@@ -139,14 +139,6 @@ c = hadamard_cube(a)
 
 verify_cube_properties(c)
 
-
-
-def counts(c):
-    N = 100000
-    bins = (N * np.angle(c)).astype(int)
-    bins = np.abs(bins)
-    vals, cnts = np.unique(bins.flatten(), return_counts=True)
-    return cnts
 
 
 def verify_surprising_cube_properties(c):
@@ -177,7 +169,8 @@ def verify_surprising_cube_properties(c):
     print("Szollosi", " ".join("F" if not is_transposed else "FT" for is_transposed in is_transposeds))
 
 
-verify_surprising_cube_properties(c) ; exit()
+# verify_surprising_cube_properties(c) ; exit()
+
 
 
 if filename == "triplets/triplet_mub_00018.npy":
@@ -196,6 +189,35 @@ c = c[:, y_perm, :]
 c = c[:, :, z_perm]
 
 verify_cube_properties(c)
+
+
+# Used to create mail on April 19 11:00.
+def dump_eigenvectors(c):
+    for indx in range(2):
+        print("========")
+        print(f"MUB {filename} slice {indx}")
+        sx = c[indx, :, :]
+        print(angler(sx))
+        values, vectors = np.linalg.eig(sx)
+        print("----")
+        print("elementwise abs of eigenvectors * sqrt(6)")
+        print(np.abs(vectors) * 6 ** 0.5)
+        print("----")
+        print("elementwise angle of eigenvectors")
+        print(angler(vectors))
+
+    sx0 = c[0, :, :]
+    sx1 = c[1, :, :]
+    values0, vectors0 = np.linalg.eig(sx0)
+    values1, vectors1 = np.linalg.eig(sx1)
+    vectors0 /= np.abs(vectors0) * 6 ** 0.5
+    vectors1 /= np.abs(vectors1) * 6 ** 0.5
+    verify_hadamard(vectors0)
+    verify_hadamard(vectors1)
+    print("slice eigenvectors equivalent:", is_equivalent(vectors0, vectors1))
+
+
+dump_eigenvectors(c) ; exit()
 
 
 def test_cube_invariances(a_orig):
