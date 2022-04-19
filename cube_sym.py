@@ -80,8 +80,8 @@ def szollosi_original_sym(firstrow):
     a, b, c, d, e, f = firstrow
     block1 = circulant_sym([a, b, c])
     block2 = circulant_sym([d, e, f])
-    block3 = circulant_sym([1/d, 1/f, 1/e])
-    block4 = circulant_sym([-1/a, -1/c, -1/b])
+    block3 = circulant_sym([conjugate(d), conjugate(f), conjugate(e)])
+    block4 = circulant_sym([-conjugate(a), -conjugate(c), -conjugate(b)])
     blockcirculant = Matrix(BlockMatrix([[block1, block2], [block3, block4]]))
     return blockcirculant
 
