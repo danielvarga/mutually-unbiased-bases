@@ -3,6 +3,10 @@ import numpy as np
 from itertools import permutations
 import matplotlib.pyplot as plt
 
+from sympy import *
+from sympy.physics.quantum.dagger import Dagger
+from sympy.tensor.array import MutableDenseNDimArray
+
 from base import *
 
 
@@ -53,6 +57,8 @@ def recreate_slice(firstrow, phi):
     return blockcirculant
 
 
+# beware: elements of firstrow have abs 1/sqrt(6),
+# but phi has abs 1.
 def deconstruct_slice(sx, atol=1e-4):
     firstrow = sx[0, :]
     blockcirculant = szollosi_original(firstrow)
@@ -65,8 +71,72 @@ def deconstruct_slice(sx, atol=1e-4):
     return firstrow, phi
 
 
-for indx in range(6):
-    sx = c[indx, :, :]
-    firstrow, phi = deconstruct_slice(sx)
-    # print(angler(recreate_slice(firstrow, phi)))
-    print(angler(phi))
+def circulant_sym(firstrow):
+    a, b, c = firstrow
+    return Matrix([[a, b, c], [c, a, b], [b, c, a]])
+
+
+def szollosi_original_sym(firstrow):
+    a, b, c, d, e, f = firstrow
+    block1 = circulant_sym([a, b, c])
+    block2 = circulant_sym([d, e, f])
+    block3 = circulant_sym([1/d, 1/f, 1/e])
+    block4 = circulant_sym([-1/a, -1/c, -1/b])
+    blockcirculant = Matrix(BlockMatrix([[block1, block2], [block3, block4]]))
+    return blockcirculant
+
+
+def szollosi_modified_sym(firstrow, phi):
+    blockcirculant = szollosi_original_sym(firstrow)
+    blockcirculant[3:, :] *= phi
+    return blockcirculant
+
+
+def conjugate_pair_sym(sx):
+    sxb = sx.copy()
+    b00 = Dagger(sx[:3, :3])
+    b01 = Dagger(sx[:3, 3:])
+    b10 = Dagger(sx[3:, :3])
+    b11 = Dagger(sx[3:, 3:])
+    sxb[:3, :3] = b11
+    sxb[:3, 3:] = b10
+    sxb[3:, :3] = b01
+    sxb[:3, :3] = b00
+    return sxb
+
+
+def build_cube_from_slicepair_data(slicepair_data):
+    c = MutableDenseNDimArray([0] * 216, (6, 6, 6))
+    print(c.shape)
+    for i in range(3):
+        firstrow, phi = slicepair_data[i]
+        sx0_sym = szollosi_modified_sym(firstrow, phi)
+        sx1_sym = conjugate_pair(sx0_sym)
+        c[2 * i, :, :] = sx0_sym
+        c[2 * i + 1, :, :] = sx1_sym
+    return c
+
+
+def evaluate(s):
+    return np.array(s).astype(np.complex128)
+
+
+slicepair_data = []
+for indx in range(0, 6, 2):
+    sx0 = c[indx, :, :]
+    sx1 = c[indx + 1, :, :]
+    assert np.allclose(sx1, conjugate_pair(sx0), atol=1e-4)
+
+    firstrow, phi = deconstruct_slice(sx0)
+    slicepair_data.append((firstrow, phi))
+    sx0_sym = szollosi_modified_sym(firstrow, phi)
+    sx0_recalc = evaluate(sx0_sym)
+    assert np.allclose(sx0_recalc, sx0, atol=1e-4)
+
+    sx1_sym = conjugate_pair(sx0_sym)
+    sx1_recalc = evaluate(sx1_sym)
+    assert np.allclose(sx1_recalc, sx1, atol=1e-4)
+
+
+c_sym = build_cube_from_slicepair_data(slicepair_data)
+assert np.allclose(evaluate(c_sym), c, atol=1e-4)
