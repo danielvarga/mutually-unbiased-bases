@@ -196,6 +196,19 @@ c_sym = build_cube_from_slicepair_data(slicepair_data_sym)
 c_semisym_again = substitute_slicepair_data(c_sym, slicepair_data_sym, slicepair_data)
 assert np.allclose(evaluate(c_semisym_again), c, atol=1e-4)
 
+
+def check_one_d_slice(oned):
+    # assert np.isclose(evaluate(substitute_slicepair_data(sum(oned), slicepair_data_sym, slicepair_data)), 1, atol=1e-4)
+    return sum(oned) - 1
+
+
+oned_constraints = []
+for i in range(6):
+    for j in range(6):
+        for oned in [c_sym[i, j, :], c_sym[:, i, j], c_sym[j, :, i]]:
+            oned_constraints.append(check_one_d_slice(oned))
+
+
 sx_reconstructed_sym = Matrix(c_sym[0, :, :])
 sy_reconstructed_sym = Matrix(c_sym[:, 0, :])
 sz_reconstructed_sym = Matrix(c_sym[:, :, 0])
@@ -236,7 +249,7 @@ y_unitarity_constraints = collect_constraints(prody)
 z_unitarity_constraints = collect_constraints(prodz)
 
 
-unitarity_constraints = x_unitarity_constraints + y_unitarity_constraints + z_unitarity_constraints
+unitarity_constraints = oned_constraints + x_unitarity_constraints + y_unitarity_constraints + z_unitarity_constraints
 
 # that's no good, a y and a z slice are not unbiased by default.
 '''
