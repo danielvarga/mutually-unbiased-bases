@@ -170,7 +170,6 @@ def collect_slicepair_data(c):
     return slicepair_data
 
 
-
 def create_symbolic_cube():
     # sy as in y-directional slice, a Fourier matrix.
     sy_sym = Matrix([[symbols(f'f_{i+1}{j+1}') for j in range(6)] for i in range(6)])
@@ -218,46 +217,19 @@ def extract_constraints_from_symbolic_cube(c):
                 oned_constraints.append(sum(oned) - 1)
 
     unitarity_constraints = []
-    for i in range(6):
-        sx_reconstructed_sym = Matrix(c_sym[i, :, :])
-        sy_reconstructed_sym = Matrix(c_sym[:, i, :])
-        sz_reconstructed_sym = Matrix(c_sym[:, :, i])
-        print("sx", sx_reconstructed_sym)
-        print("----")
-        print("sy", sy_reconstructed_sym)
-        print("----")
-        print("sz", sz_reconstructed_sym)
+    for direction in range(3):
+        for coord in range(6):
+            s_sym = Matrix(slic(c_sym, direction, coord))
+            s = slic(c, direction, coord)
+            assert np.allclose(evaluate(substitute_slicepair_data(s_sym, slicepair_data_sym, slicepair_data)), s, atol=1e-4)
 
-        assert np.allclose(evaluate(substitute_slicepair_data(sx_reconstructed_sym, slicepair_data_sym, slicepair_data)), c[i, :, :], atol=1e-4)
-        assert np.allclose(evaluate(substitute_slicepair_data(sy_reconstructed_sym, slicepair_data_sym, slicepair_data)), c[:, i, :], atol=1e-4)
-        assert np.allclose(evaluate(substitute_slicepair_data(sz_reconstructed_sym, slicepair_data_sym, slicepair_data)), c[:, :, i], atol=1e-4)
+            prod = Dagger(s_sym) @ s_sym - eye(6) * 6
+            prod = enforce_norm_one(prod, variables)
+            print("s^* s - 6Id", prod)
+            prod_semisym = substitute_slicepair_data(prod, slicepair_data_sym, slicepair_data)
+            print(evaluate(prod_semisym))
 
-
-        prodx = Dagger(sx_reconstructed_sym) @ sx_reconstructed_sym - eye(6) * 6
-        prodx = enforce_norm_one(prodx, variables)
-        print("sx^* sx - 6Id", prodx)
-        prodx_semisym = substitute_slicepair_data(prodx, slicepair_data_sym, slicepair_data)
-        print(evaluate(prodx_semisym))
-
-
-        prody = Dagger(sy_reconstructed_sym) @ sy_reconstructed_sym - eye(6) * 6
-        prody = enforce_norm_one(prody, variables) / 2
-        print("(sy^* sy - 6Id)/2", prody)
-        prody_semisym = substitute_slicepair_data(prody, slicepair_data_sym, slicepair_data)
-        print(evaluate(prody_semisym))
-
-
-        prodz = Dagger(sz_reconstructed_sym) @ sz_reconstructed_sym - eye(6) * 6
-        prodz = enforce_norm_one(prodz, variables) / 2
-        print("(sz^* sz - 6Id)/2", prodz)
-        prodz_semisym = substitute_slicepair_data(prodz, slicepair_data_sym, slicepair_data)
-        print(evaluate(prodz_semisym))
-
-        x_unitarity_constraints = collect_constraints(prodx)
-        y_unitarity_constraints = collect_constraints(prody)
-        z_unitarity_constraints = collect_constraints(prodz)
-
-        unitarity_constraints += x_unitarity_constraints + y_unitarity_constraints + z_unitarity_constraints
+            unitarity_constraints += collect_constraints(prod)
 
     constraints = unitarity_constraints + oned_constraints
     constraints = remove_redundant_constraints(constraints)
