@@ -13,6 +13,9 @@ TIP = 2j * np.pi
 W = np.exp(TIP / 3)
 
 
+BOARD = [(i, j) for i in range(6) for j in range(6)]
+
+
 def degrees_to_phases(d):
     return np.exp(1j * np.pi / 180 * d)
 
@@ -277,21 +280,21 @@ def deconstruct_product(prod):
     print(np.around(angler(sub1 / sub0)))
     print(np.around(angler(sub2 / sub0)))
 
-
-np.set_printoptions(precision=3, suppress=True, linewidth=100000)
-for (i, j) in [(0, 1), (1, 2), (2, 0)]:
-    prod = np.conjugate(mub[i].T) @ mub[j]
-    # deconstruct_product(prod)
-    print(f"| B_{i}^dagger B_{j} | / 6")
-    print(np.abs(prod) / 6)
-    ang = angler(prod)
-    print(angler(prod))
-    # these three elements determine the product up to combinatorics,
-    # but they are only two degrees of freedom really, because
-    # ang[0,1] = ang[0,0] + delta, ang[1,0] = ang[0,0] - delta, for some delta.
-    for (i, j) in [(0, 0), (0, 1), (1, 0)]:
-        print(i, j)
-        print(ang - ang[i, j])
+def dump_alpha_delta_structure(mub):
+    np.set_printoptions(precision=3, suppress=True, linewidth=100000)
+    for (i, j) in [(0, 1), (1, 2), (2, 0)]:
+        prod = np.conjugate(mub[i].T) @ mub[j]
+        # deconstruct_product(prod)
+        print(f"| B_{i}^dagger B_{j} | / 6")
+        print(np.abs(prod) / 6)
+        ang = angler(prod)
+        print(angler(prod))
+        # these three elements determine the product up to combinatorics,
+        # but they are only two degrees of freedom really, because
+        # ang[0,1] = ang[0,0] + delta, ang[1,0] = ang[0,0] - delta, for some delta.
+        for (i, j) in [(0, 0), (0, 1), (1, 0)]:
+            print(i, j)
+            print(ang - ang[i, j])
 
 
 def dump_products(mub):
@@ -310,7 +313,7 @@ def dump_products(mub):
 # dump_products(mub)
 
 
-# also scale it back to be actually unitary.
+# put back B_0=Id in front of them, and also scale them back to be actually unitary.
 def put_back_id(mub):
     return np.concatenate([np.eye(6, dtype=np.complex128)[np.newaxis, ...], mub / 6 ** 0.5])
 
@@ -378,17 +381,11 @@ def symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_var, y_var):
 # we assume that all of them are F(x, 1) bases.
 def create_basis(indx, factors):
     left_phases, left_pm, x, y, right_pm, right_phases = factors
-    assert np.isclose(np.angle(x) / TP * 360, 55.118, atol=1e-4)
+    assert np.isclose(np.angle(x) / TP * 360, 55.118, atol=1e-3)
     assert np.isclose(y, 1)
     left_phases_var = [sympy.symbols(f'p{indx}{i}') for i in range(6)]
     x_var = sympy.symbols('x')
     return left_phases_var, symbolic_generalized_fourier_basis(left_phases_var, left_pm, x_var, 1)
-
-
-# all the below is true for normalized/mub_10040.npy and not much else.
-# the goal is to reverse engineer this single one. the rest is combinatorics,
-# the manifold is zero dimensional.
-
 
 
 A = 0.42593834 # new name W
@@ -405,8 +402,6 @@ left_phases_var = Matrix([[sympy.symbols(f'p1{i}') for i in range(6)]]) # row ve
 
 d_1 = factorized_mub[1][0]
 x = factorized_mub[0][2]
-alpha = 0.8078018037463457+0.589454193185654j
-delta = -0.12834049204788406+0.9917301639563593j
 
 # at this point we hardwire mub_10024.py, sorry.
 # its distinct characteristic is that the tripartition
@@ -426,6 +421,11 @@ delta = -0.12834049204788406+0.9917301639563593j
 # delta := beta/alpha
 # other than that, we are general, so it would not be hard to cover all qmubs.
 def reconstruct_product(b0, b1):
+    # ouch. this is right now the simplest way to
+    # make sym_to_num be aware of these variables.
+    # TODO figure out something more robust.
+    global alpha, delta
+
     prod = np.conjugate(b0.T) @ b1
     msquared = np.abs(prod) ** 2
     normed = prod.copy()
@@ -435,11 +435,10 @@ def reconstruct_product(b0, b1):
     alpha = normed[0, 0]
     beta = normed[0, 1]
     delta = beta / alpha
-    print("alpha", alpha, "delta", delta)
     assert np.isclose(normed[1, 0], alpha / delta), "this is a restriction currently, please use mub_10024.py or generalize"
     candidates = np.array([alpha, alpha * delta, alpha / delta])
     all_candidates = candidates[:, None] * roots[None, :]
-    masks = [np.isclose(normed, all_candidates[i, j], atol=1e-5).astype(int) for i in range(3) for j in range(12)]
+    masks = [np.isclose(normed, all_candidates[i, j], atol=1e-4).astype(int) for i in range(3) for j in range(12)]
     masks = np.array(masks).reshape((3, 12, 6, 6))
     assert masks.sum() == 36, "some elements of the product could not be indentified"
     # TODO we can do it without increasing the degree
@@ -457,14 +456,123 @@ def reconstruct_product(b0, b1):
     assert np.allclose(sym_to_num(normed_prod_sym), normed)
 
     msquared = np.abs(prod) ** 2
-    masks = [np.isclose(msquared, numerical_magic_constants[i]).astype(int) for i in range(3)]
+    masks = [np.isclose(msquared, numerical_magic_constants[i], atol=1e-4).astype(int) for i in range(3)]
     masks = np.array(masks)
+    assert masks.sum() == 36
     magnitude_matrix_sym = 6 * sympy.ones(6, 6)
     for i in range(6):
         for j in range(6):
             element_index = np.argmax(masks[:, i, j])
             magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
     assert np.allclose(sym_to_num(magnitude_matrix_sym), np.abs(prod))
+    return matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
+
+
+def identify_alpha_delta(b0, b1):
+    prod = np.conjugate(b0.T) @ b1
+    msquared = np.abs(prod) ** 2
+    normed = prod.copy()
+    normed /= np.abs(normed)
+
+    magnitude_masks = [np.isclose(msquared, numerical_magic_constants[i], atol=1e-4).astype(int) for i in range(3)]
+    magnitude_masks = np.array(magnitude_masks)
+
+    A_mask = magnitude_masks[0]
+    collection = []
+    for (i, j) in BOARD:
+        if A_mask[i, j]:
+            rot = normed[i, j]
+            collection.append(rot)
+    collection = np.array(collection)
+
+    coll_60 = []
+    epsilon = 0.01
+    for rot in collection:
+        while not(epsilon <= np.angle(rot) < np.pi / 3 + epsilon):
+            rot *= np.exp(1j * np.pi / 3)
+        coll_60.append(rot)
+    coll_60 = np.array(coll_60)
+    # -> coll_60 is supposed to have only 3 distinct values up to numerical precision.
+    #    12 alpha, 6 alpha delta, 6 alpha conj(delta).
+    pairs = coll_60[None, :] / coll_60[:, None]
+    neighbors = np.isclose(pairs, 1, atol=1e-4)
+    neighbor_counts = neighbors.sum(axis=1)
+    print("neighbor_counts", neighbor_counts)
+    # we are interested in the ones that have exactly 12 neighbors:
+    alpha_circle = collection[neighbor_counts == 12]
+    # plt.scatter(collection.real, collection.imag) plt.show()
+    assert len(alpha_circle) == 12
+
+    # any element of alpha_circle will do as alpha, it's fully symmetric
+    alpha = alpha_circle[0]
+    collection /= alpha
+    alpha_circle = collection[neighbor_counts == 12]
+
+    '''
+    plt.scatter(collection.real, collection.imag)
+    plt.scatter(alpha_circle.real, alpha_circle.imag)
+    plt.show()
+    plt.scatter(angler(collection), np.zeros_like(collection))
+    plt.scatter(angler(alpha_circle), np.zeros_like(alpha_circle))
+    plt.show()
+    exit()
+    '''
+
+    # more exactly delta union conj(delta) circle:
+    delta_circle = collection[neighbor_counts == 6]
+    assert len(delta_circle) == 12
+    # after the previous division by alpha,
+    # any element of the delta_circle will do as delta.
+    delta = delta_circle[0]
+    return alpha, delta
+
+
+def reconstruct_product_generally(b0, b1, use_alpha):
+    alpha, delta = identify_alpha_delta(b0, b1)
+    # by the time we get to this, alpha is moved out,
+    # and delta is 7.3737 degrees.
+    if not use_alpha:
+        assert np.isclose(alpha, 1)
+
+    prod = np.conjugate(b0.T) @ b1
+    msquared = np.abs(prod) ** 2
+    normed = prod.copy()
+    normed /= np.abs(normed)
+
+    WW = np.exp(TIP / 12)
+    roots = WW ** np.arange(12)
+    candidates = np.array([alpha, alpha * delta, alpha / delta])
+    all_candidates = candidates[:, None] * roots[None, :]
+    masks = [np.isclose(normed, all_candidates[i, j], atol=1e-4).astype(int) for i in range(3) for j in range(12)]
+    masks = np.array(masks).reshape((3, 12, 6, 6))
+    assert masks.sum() == 36, "some elements of the product could not be indentified"
+    # TODO we can do it without increasing the degree
+    roots_sym = Matrix([WWsym ** i for i in range(12)])
+    if use_alpha:
+        candidates_sym = [alphasym, alphasym * deltasym, alphasym * conjugate(deltasym)]
+    else:
+        candidates_sym = [1, deltasym, conjugate(deltasym)]
+
+    normed_prod_sym = sympy.ones(6, 6)
+    for i in range(6):
+        for j in range(6):
+            onehot = masks[:, :, i, j]
+            element_index = np.argmax(onehot.sum(axis=1))
+            rotation = np.argmax(onehot.sum(axis=0))
+            assert onehot[element_index, rotation] == 1
+            normed_prod_sym[i, j] *= candidates_sym[element_index] * roots_sym[rotation]
+    assert np.allclose(sym_to_num(normed_prod_sym), normed, atol=1e-4), (sym_to_num(normed_prod_sym), normed)
+
+    # TODO get rid of lots of copypaste
+    magnitude_masks = [np.isclose(msquared, numerical_magic_constants[i], atol=1e-2).astype(int) for i in range(3)]
+    magnitude_masks = np.array(magnitude_masks)
+    assert magnitude_masks.sum() == 36
+    magnitude_matrix_sym = sympy.ones(6, 6)
+    for i in range(6):
+        for j in range(6):
+            element_index = np.argmax(magnitude_masks[:, i, j])
+            magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
+    assert np.allclose(sym_to_num(6 * magnitude_matrix_sym), np.abs(prod))
     return matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
 
 
@@ -497,6 +605,32 @@ def create_symbolic_mub(factorized_mub):
         symbolic_bases.append(b)
     return symbolic_bases
 
+alpha = 0.8078018037463457+0.589454193185654j
+delta = -0.12834049204788406+0.9917301639563593j
+
+symbolic_bases = create_symbolic_mub(factorized_mub)
+
+assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
+
+
+# alpha and delta returned in global variables
+# because of the sym_to_num closure, sorry.
+prod01reconstructed_sym = reconstruct_product_generally(mub[0], mub[1], use_alpha=True)
+assert np.allclose(sym_to_num(prod01reconstructed_sym), np.conjugate(mub[0].T) @ mub[1])
+
+
+# alpha now recieved from reconstruct_product_generally() as global.
+# we remove it from mub[1], and correct the left phase accordingly.
+
+# d_1 /= alpha
+mub[1] = factors_to_basis(factorized_mub[1])
+
+# now we have mutated mub[1], we have to do it all over again
+prod01reconstructed_sym = reconstruct_product_generally(mub[0], mub[1], use_alpha=True)
+
+# assert np.isclose(alpha, 1) # second time's the charm
+assert np.allclose(sym_to_num(prod01reconstructed_sym), np.conjugate(mub[0].T) @ mub[1])
+
 
 symbolic_bases = create_symbolic_mub(factorized_mub)
 
@@ -510,9 +644,12 @@ for i in range(2):
 # this is where we collect the D_1 elements written up in terms of A,B,C,x,W,WW.
 phase_solution = left_phases_var[:]
 
+print('''HOPPA HOPPA EZEK IMMARON NEM IGAZAK, HA KIFORGATTAM alpha-t BALRA!!!
+csak ph[0] es ph[1] hanyadosarol tudok nyilatkozni, ugyanugy, mint ahogy a ph[3] es ph[4] viszonyarol eddig is.''')
+
 symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[0], conjugate(xvar))
 phase_solution[0] = conjugate(xvar)
-assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
+assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1], atol=1e-4)
 symbolic_bases[1] = symbolic_bases[1].subs(left_phases_var[1], -Wsym ** 2)
 phase_solution[1] = -Wsym ** 2
 assert np.allclose(sym_to_num(symbolic_bases[1]), mub[1])
@@ -529,9 +666,6 @@ prod01sym = simplify_roots(prod01sym)
 print("product", prod01sym)
 
 assert np.allclose(sym_to_num(prod01sym), np.conjugate(mub[0].T) @ mub[1])
-
-prod01reconstructed_sym = reconstruct_product(mub[0], mub[1])
-print("reconstruction", prod01reconstructed_sym)
 
 diff = prod01sym - prod01reconstructed_sym
 

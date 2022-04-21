@@ -88,16 +88,6 @@ for l in sys.stdin:
     mubs[filename].append(factors)
 
 
-'''
-assert len(mubs.keys()) == 2
-keys = sorted(mubs.keys())
-factorized_mub_m = mubs[keys[0]]
-factorized_mub_n = mubs[keys[1]]
-print("qMUB M:", keys[0])
-print("qMUB N:", keys[1])
-assert len(factorized_mub_m) == len(factorized_mub_n)== 3
-'''
-
 assert len(mubs.keys()) == 1
 factorized_mub = mubs[list(mubs.keys())[0]]
 
@@ -225,7 +215,6 @@ for i in range(3):
     mub.append(basis)
 mub = np.array(mub)
 
-
 def closeness(a, b):
     return np.sum(np.abs(a - b) ** 2)
 
@@ -297,6 +286,20 @@ D = 0.40824829
 numerical_magic_constants = [36 * c **2 for c in [A, B, C]]
 
 
+def test_UVW_constraints():
+    # name clash with sympy.sqrt:
+    from numpy import sqrt
+    assert np.isclose(4*A**2+B**2+C**2, 1)
+    assert np.isclose(2*A**2, B**2 + sqrt(3)*B*C)
+    assert np.isclose(C, 1 - sqrt(3) * B)
+    assert np.isclose(A, sqrt((sqrt(3) - 2*B)*B)/sqrt(2))
+    assert np.isclose(A**2 + B**2, sqrt(3)/2*B)
+    print("passed all test regarding U, V, W constraints")
+
+
+# test_UVW_constraints() ; exit()
+
+
 def identify_alpha_delta(b0, b1):
     prod = np.conjugate(b0.T) @ b1
     msquared = np.abs(prod) ** 2
@@ -355,18 +358,20 @@ def identify_alpha_delta(b0, b1):
     # after the previous division by alpha,
     # any element of the delta_circle will do as delta.
     # we break the tie by choosing the one closest to 0,
-    # that's supposed to be ~7.3737 degrees.
+    # that's supposed to be either ~7.3737 degrees or ~60-7.3737 degrees.
+    print(angler(delta_circle))
     dist_to_0 = np.abs(np.angle(delta_circle))
     i = np.argmin(dist_to_0)
     delta = delta_circle[i]
     return alpha, delta
 
 
-def reconstruct_product_generally(b0, b1):
+def reconstruct_product_generally(b0, b1, use_alpha):
     alpha, delta = identify_alpha_delta(b0, b1)
     # by the time we get to this, alpha is moved out,
     # and delta is 7.3737 degrees.
-    assert np.isclose(alpha, 1)
+    if not use_alpha:
+        assert np.isclose(alpha, 1)
 
     prod = np.conjugate(b0.T) @ b1
     msquared = np.abs(prod) ** 2
@@ -382,7 +387,10 @@ def reconstruct_product_generally(b0, b1):
     assert masks.sum() == 36, "some elements of the product could not be indentified"
     # TODO we can do it without increasing the degree
     roots_sym = Matrix([WWsym ** i for i in range(12)])
-    candidates_sym = [1, deltasym, conjugate(deltasym)]
+    if use_alpha:
+        candidates_sym = [alphasym, alphasym * deltasym, alphasym * conjugate(deltasym)]
+    else:
+        candidates_sym = [1, deltasym, conjugate(deltasym)]
 
     normed_prod_sym = sympy.ones(6, 6)
     for i in range(6):
@@ -392,30 +400,52 @@ def reconstruct_product_generally(b0, b1):
             rotation = np.argmax(onehot.sum(axis=0))
             assert onehot[element_index, rotation] == 1
             normed_prod_sym[i, j] *= candidates_sym[element_index] * roots_sym[rotation]
-    # assert np.allclose(sym_to_num(normed_prod_sym), normed, atol=1e-4)
+    assert np.allclose(sym_to_num(normed_prod_sym), normed, atol=1e-4)
 
     # TODO get rid of lots of copypaste
     magnitude_masks = [np.isclose(msquared, numerical_magic_constants[i], atol=1e-2).astype(int) for i in range(3)]
     magnitude_masks = np.array(magnitude_masks)
     assert magnitude_masks.sum() == 36
-    magnitude_matrix_sym = 6 * sympy.ones(6, 6)
+    magnitude_matrix_sym = sympy.ones(6, 6)
     for i in range(6):
         for j in range(6):
             element_index = np.argmax(magnitude_masks[:, i, j])
             magnitude_matrix_sym[i, j] *= magnitudes_sym[element_index]
-    # assert np.allclose(sym_to_num(magnitude_matrix_sym), np.abs(prod))
+    assert np.allclose(sym_to_num(6 * magnitude_matrix_sym), np.abs(prod))
     return matrix_multiply_elementwise(normed_prod_sym, magnitude_matrix_sym)
+
+
+def simplify_roots(expr):
+    e = expr.subs(conjugate(Wsym), Wsym ** 2)
+    e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2).subs(Wsym ** 6, 1)
+    return e
+
+
+def apply_elemwise(fn, matrix):
+    m = matrix.as_mutable()
+    for k in range(m.shape[0]):
+        for l in range(m.shape[1]):
+            m[k, l] = fn(m[k, l])
+    return m
+
+
+def enforce_norm_one(p, variables):
+    for var in variables:
+        p = p.subs(conjugate(var) * var, 1)
+    return p
+
+
+def subs_roots(f):
+    f = f.subs(Wsym, - Rational(1, 2) + 1j * sqrt(3) * Rational(1, 2))
+    f = f.subs(WWsym, Rational(1, 2) * 1j + sqrt(3) * Rational(1, 2))
+    f = expand(f)
+    return f
 
 
 def sym_to_num(formula):
     f = formula.subs(Wsym, W).subs(WWsym, np.exp(TIP/12))
-    f = f.subs(xvar, x)
-    # f = f.subs(BperAvar, B/A).subs(CperAvar, C/A)
     f = f.subs(magnitudes_sym[0], A).subs(magnitudes_sym[1], B).subs(magnitudes_sym[2], C)
-    f = f.subs(alphasym, alpha).subs(deltasym, delta)
-    # TODO we don't substitute d_2.
-    for i in range(6):
-        f = f.subs(left_phases_var[i], d_1[i])
+    f = f.subs(deltasym, delta).subs(alphasym, alpha)
     try:
         a = np.array(f, dtype=np.complex128)
     except:
@@ -426,24 +456,64 @@ def sym_to_num(formula):
 
 
 alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
-print("orig alpha1", angler(alpha1))
+print("delta_orig", angler(delta1))
 
-mub[1] /= alpha1
-alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
-print("orig alpha2", angler(alpha2))
-mub[2] /= alpha2
-alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
-print("after alpha2", angler(alpha1))
-alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
-print("after alpha2", angler(alpha2))
 
-alpha0, delta0 = identify_alpha_delta(mub[1], mub[2])
-print("after alpha0", angler(alpha0))
+alpha_removal = True
+if alpha_removal:
+    mub[1] /= alpha1
+    alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
+    mub[2] /= alpha2
 
+    alpha1, delta1 = identify_alpha_delta(mub[0], mub[1])
+    assert np.isclose(alpha1, 1)
+    alpha2, delta2 = identify_alpha_delta(mub[0], mub[2])
+    assert np.isclose(alpha2, 1)
+
+    alpha0, delta0 = identify_alpha_delta(mub[1], mub[2])
+    assert np.isclose(alpha0, 1)
+
+
+delta = delta1
+print("delta", angler(delta))
+
+# dump_products(mub)
+
+
+
+'''
+for (i, j) in [(0, 1), (1, 2), (2, 0)]:
+        prods[i] = np.conjugate(mub[i].T) @ mub[j] / 6
+        print(f"X = B_{i}^dagger B_{j} / 6")
+        print(prods[i])
+        print(np.angle(prods[i]) / 2/ np.pi * 360)
+        print(f"X**2 ")
+        print(prods[i] @ prods[i])
+exit()
+'''
 
 prod01 = np.conjugate(mub[0].T) @ mub[1]
 prod12 = np.conjugate(mub[1].T) @ mub[2]
 prod20 = np.conjugate(mub[2].T) @ mub[0]
+
+np.set_printoptions(precision=3, suppress=True, linewidth=100000)
+
+print("01^2", prod01 @ prod01) # (120deg)Id
+print("20^2", prod20 @ prod20) # Id
+print("12^2", prod12 @ prod12) # uglier
+print("12^3", prod12 @ prod12 @ prod12)
+
+
+def dump_eigenvalues():
+    print("Okay")
+    np.set_printoptions(precision=3, suppress=True, linewidth=100000)
+    for (i, j) in [(0, 1), (1, 2), (2, 0)]:
+        prod = np.conjugate(mub[i].T) @ mub[j]
+        eigvals, eigvecs = np.linalg.eig(prod / 6)
+        print("filename", filename, "eigvals", i, j, np.sort(angler(eigvals)))
+
+
+dump_eigenvalues() ; exit()
 
 
 def rot_to_60(a):
@@ -464,24 +534,52 @@ for alpha in (-W**2) ** np.arange(6):
     # plt.show()
 
 
-WWsym, deltasym = sympy.symbols('WW delta')
+Wsym, WWsym, alphasym, deltasym = sympy.symbols('W WW alpha delta')
 magnitudes_sym = sympy.symbols('A B C')
 
 
+sym_prods = []
 for (i, j) in [(0, 1), (1, 2), (2, 0)]:
     prod = np.conjugate(mub[i].T) @ mub[j] / 6
     vals = prod.flatten()
     # vals = rot_to_60(vals)
-    print(sorted(set(np.around(angler(vals), 3))))
-
+    # print(sorted(set(np.around(angler(vals), 3))))
     # plt.scatter(vals.real, vals.imag)
     # plt.show()
 
-    print(reconstruct_product_generally(mub[i], mub[j]))
+    print(i, j)
+    alpha, delta = identify_alpha_delta(mub[i], mub[j])
+    alpha = 1
+    sym_prods.append(reconstruct_product_generally(mub[i], mub[j], use_alpha=False))
+
+
+for indx, (i, j) in enumerate([(0, 1), (1, 2), (2, 0)]):
+    prod = sym_prods[indx]
+    if (i, j) == (1, 2):
+        exponent = 3
+    else:
+        exponent = 2
+    print("======")
+    print("pair", (i, j), "exponent", exponent)
+    pp = prod ** exponent
+    pp = subs_roots(enforce_norm_one(pp, [deltasym]))
+    pp = factor(simplify(pp))
+    print(nsimplify(enforce_norm_one(pp, [deltasym])))
+    '''
+    if exponent == 3:
+        print(sympy.latex(nsimplify(pp[0, 0] / 6)))
+    '''
+
+print("!!!!!!!", 6*np.sqrt(3)*A**2*B + 6*A**2*C - 3*B**2*C + C**3)
+
+# 0 = 2(-60deg)A^2 + (120deg)B^2 + sqrt(3)(120deg)BC
+print("????", -2*W*A**2 + W*B**2 + np.sqrt(3)*W*BC)
 
 
 exit()
 
+
+'''
 plt.scatter(prod01.flatten().real, prod01.flatten().imag)
 plt.show()
 plt.scatter(prod12.flatten().real, prod12.flatten().imag)
@@ -489,7 +587,7 @@ plt.show()
 plt.scatter(prod20.flatten().real, prod20.flatten().imag)
 plt.show()
 exit()
-
+'''
 
 
 
@@ -514,24 +612,6 @@ print("normalized qMUB saved into tmp.npy")
 Wsym = symbols('W')
 
 
-def simplify_roots(expr):
-    e = expr.subs(conjugate(Wsym), Wsym ** 2)
-    e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2).subs(Wsym ** 6, 1)
-    return e
-
-
-def apply_elemwise(fn, matrix):
-    m = matrix.as_mutable()
-    for k in range(m.shape[0]):
-        for l in range(m.shape[1]):
-            m[k, l] = fn(m[k, l])
-    return m
-
-
-def enforce_norm_one(p, variables):
-    for var in variables:
-        p = p.subs(conjugate(var) * var, 1)
-    return p
 
 
 def symbolic_fourier_basis(x_var, y_var):
@@ -719,13 +799,6 @@ assert np.allclose(sym_to_num(prod01sym), np.conjugate(mub[0].T) @ mub[1])
 diff = prod01sym - prod01reconstructed_sym
 
 assert np.allclose(sym_to_num(diff), 0, atol=1e-4)
-
-
-def subs_roots(f):
-    f = f.subs(Wsym, - Rational(1, 2) + 1j * sqrt(3) * Rational(1, 2))
-    f = f.subs(WWsym, Rational(1, 2) * 1j + sqrt(3) * Rational(1, 2))
-    f = expand(f)
-    return f
 
 
 diff = subs_roots(diff)

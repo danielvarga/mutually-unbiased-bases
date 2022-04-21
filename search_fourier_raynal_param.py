@@ -111,31 +111,38 @@ logds_init = tf.random.uniform([2, 6], dtype=tf.float64)
 logds = tf.Variable(logds_init, trainable=True)
 
 
-'''
-# the only free param:
-logd1_p = tf.Variable(1, trainable=True)
-logd1 = tf.convert_to_tensor([logd1_p, -logd1_p, ])
-'''
-
-
 logxs_init = tf.random.uniform([6], dtype=tf.float64)
 logxs = tf.Variable(logxs_init, trainable=True)
 
-variables = [logxs, logds]
+# the only free param:
+logd1_p = tf.Variable(1.0, dtype=tf.float64, trainable=True)
+
+logd2_init = tf.random.uniform([6], dtype=tf.float64)
+logd2 = tf.Variable(logd2_init, trainable=True)
+
+
+
+variables = [logxs, logd1_p, logd2]
 
 def closeness(a, b):
     return tf.reduce_sum(tf.abs(a - b) ** 2)
 
 
-def phase_fn(logxs, logds):
+def phase_fn():
+    # 1/12 is 1j*conj(W). 1/2 is -1.
+    logd1 = tf.convert_to_tensor(
+        [logd1_p, -logd1_p, 2 * logd1_p + logxs[0] + 1/12,
+        1/12 + 1/2 + logxs[0] - 2 * logd1_p,
+        logd1_p, -logd1_p])
+    logds = tf.stack([logd1, logd2])
     xs = tf.exp(tf.complex(0 * logxs, logxs) * 2 * np.pi)
     ds = tf.exp(tf.complex(0 * logds, logds) * 2 * np.pi)
     return xs, ds
 
 
-def mub_fn(logxs, logds):
-    xs, ds = phase_fn(logxs, logds)
-    one_param = False
+def mub_fn():
+    xs, ds = phase_fn()
+    one_param = True
     if one_param:
         N1 = canonical_fourier_fn(1, xs[0])
         N2 = canonical_fourier_fn(xs[0], xs[0])
@@ -167,13 +174,13 @@ def loss_fn(mub):
             terms.append(closeness(tf.abs(prod), target))
     return sum(terms)
 
-opt = tf.keras.optimizers.SGD(learning_rate=0.002)
+opt = tf.keras.optimizers.SGD(learning_rate=0.001)
 
 last_seen_loss = 100
 
-for iteration in range(1000):
+for iteration in range(3000):
     with tf.GradientTape() as tape:
-        mub = mub_fn(logxs, logds)
+        mub = mub_fn()
         loss = loss_fn(mub)
     grads = tape.gradient(loss, variables)
     opt.apply_gradients(zip(grads, variables))
@@ -185,7 +192,7 @@ for iteration in range(1000):
         last_seen_loss = loss.numpy()
 
 
-mub = mub_fn(logxs, logds)
+mub = mub_fn()
 np.save("mub.npy", mub.numpy())
 
 

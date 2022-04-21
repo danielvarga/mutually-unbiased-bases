@@ -572,6 +572,8 @@ def symbolic_60(phase):
     return [-1, conjugate(Wsym), -Wsym, 1, -conjugate(Wsym), Wsym, -1][rank]
 
 
+# returns a list of free variables and a list of Eq-s,
+# where lhs can be substituted for rhs.
 def collect_phase_relations(factorized_mub):
     import networkx
     g = networkx.DiGraph()
@@ -598,18 +600,19 @@ def collect_phase_relations(factorized_mub):
                     latex_eq = None
                     eq = None
                     if rx0:
-                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(r)) + f" d_{{{b+1}{j+1}}}"
+                        latex_eq = f"d_{{{a+1}{i+1}}} &= " + latex_angle(angler(r)) + f" d_{{{b+1}{j+1}}}"
                         eq = Eq(left_phases[a - 1, i], symbolic_60(r) * left_phases[b - 1, j])
                     elif rxp:
                         r /= x
-                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(r)) + f" x d_{{{b+1}{j+1}}}"
+                        latex_eq = f"d_{{{a+1}{i+1}}} &= " + latex_angle(angler(r)) + f" x d_{{{b+1}{j+1}}}"
                         eq = Eq(left_phases[a - 1, i], symbolic_60(r) * xvar * left_phases[b - 1, j])
                     elif rxm:
                         r *= x
-                        latex_eq = f"d_{{{a+1}{i+1}}} = " + latex_angle(angler(r)) + f" \\overline(x) d_{{{b+1}{j+1}}}"
+                        latex_eq = f"d_{{{a+1}{i+1}}} &= " + latex_angle(angler(r)) + f" \\overline(x) d_{{{b+1}{j+1}}}"
                         eq = Eq(left_phases[a - 1, i], symbolic_60(r) * conjugate(xvar) * left_phases[b - 1, j])
 
                     if latex_eq is not None:
+                        latex_eq += " \\nonumber \\\\"
                         latex_eqs.append(latex_eq)
                         eqs.append(eq)
                         g.add_edge((a - 1, i), (b - 1, j), eq=eq, latex_eq=latex_eq)
@@ -622,7 +625,7 @@ def collect_phase_relations(factorized_mub):
         # than sorting based on which is multiplied by x, say.
         elements = sorted(list(component))
         minimal_element = elements[0]
-        free_variables.append(minimal_element)
+        free_variables.append(left_phases[minimal_element[0], minimal_element[1]])
         for element in elements:
             if element == minimal_element:
                 continue
@@ -634,6 +637,7 @@ def collect_phase_relations(factorized_mub):
 
 
 free_phase_variables, phase_equations = collect_phase_relations(factorized_mub)
+print("it is enough to solve for the following phase variables to get the qmub:", free_phase_variables)
 
 
 # BEWARE: the result is yet to be multiplied by 6 * alphasym.
@@ -756,12 +760,14 @@ prod01sym = Dagger(symbolic_bases[0]) @ symbolic_bases[1]
 prod01sym = simplify_roots(prod01sym)
 print("product01", prod01sym)
 prod01sym = apply_equations(prod01sym, phase_equations)
+prod01sym = enforce_norm_one(simplify_roots(prod01sym), [xvar])
 print("product01 after applying phase_equations", prod01sym)
 
 prod02sym = Dagger(symbolic_bases[0]) @ symbolic_bases[2]
 prod02sym = simplify_roots(prod02sym)
 print("product02", prod02sym)
 prod02sym = apply_equations(prod02sym, phase_equations)
+prod02sym = enforce_norm_one(simplify_roots(prod02sym), [xvar])
 print("product02 after applying phase_equations", prod02sym)
 
 assert np.allclose(sym_to_num(prod01sym), np.conjugate(mub[0].T) @ mub[1])
@@ -816,28 +822,25 @@ positions01 = [ #  BFE
 ]
 
 # positions02 = [ (i, j) for i in range(6) for j in range(6) ]
-positions02 = [(0, 0), (0, 2), (0, 3), (0, 5), (1, 2)]
+positions02 = [(0, 0), (0, 2), (0, 3), (1, 2)]
+positions02 = [(0, 0), (0, 3)]
 
-
-# variables = [sympy.symbols(f'p1{i}') for i in range(6)]
-# the remaining variables after the substitutions above:
-variables1 = sympy.symbols('p12 p14 p15 A')
-variables2 = sympy.symbols('p21 p23 p24 p25 A')
 
 # we cannot do both yet, but at least let's do either.
 which_to_solve = 2
 if which_to_solve == 1:
-    variables = variables1
     diff = diff01
     positions = positions01
     alphasym = alpha01sym
 elif which_to_solve == 2:
-    variables = variables2
     diff = diff02
     positions = positions02
     alphasym = alpha02sym
 else:
     assert False
+
+
+variables = free_phase_variables[:2] # + [magnitudes_sym[0]] # magnitudes_sym[0] = Asym
 
 
 def collect_linear_system(diff, variables, positions):
@@ -877,7 +880,7 @@ def dump_eq(variable, eq):
 
 print("---")
 dump_eq("A", directions)
-dump_eq("x", variables)
+dump_eq("x", Matrix(variables))
 dump_eq("b", biases)
 
 
@@ -901,6 +904,8 @@ def numerically_solve_and_evaluate_linear_system(directions, biases, variables):
 
 
 numerically_solve_and_evaluate_linear_system(directions, biases, variables)
+
+sys.stdout.flush()
 
 def create_and_verify_eq(formula):
     eq = subs_roots(formula)
@@ -943,6 +948,8 @@ assert np.allclose(sym_to_num(predictions_sym), expectations_num, atol=1e-4)
 for variable, prediction in zip(variables, predictions_sym):
     dump_eq(variable, prediction)
 
+
+exit()
 
 # TODO this is prod01 specific
 phase_solution[2] = predictions_sym[0]
