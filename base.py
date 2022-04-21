@@ -11,7 +11,6 @@ W = np.exp(TIP / 3)
 def dag(b):
     return np.conjugate(b.T)
 
-
 def trans(b1, b2):
     return np.conjugate(b1.T) @ b2
 
@@ -300,8 +299,8 @@ def szollosi_original(firstrow):
     a, b, c, d, e, f = firstrow
     block1 = circulant([a, b, c])
     block2 = circulant([d, e, f])
-    block3 = circulant([1/d, 1/f, 1/e])
-    block4 = circulant([-1/a, -1/c, -1/b])
+    block3 = circulant([np.conjugate(d), np.conjugate(f), np.conjugate(e)])
+    block4 = circulant([-np.conjugate(a), -np.conjugate(c), -np.conjugate(b)])
     blockcirculant = np.block([[block1, block2], [block3, block4]])
     return blockcirculant
 
@@ -396,6 +395,16 @@ def slic(c, direction, coord):
     elif direction == 2:
         return c[:, :, coord]
     assert False
+
+
+# Sz-slices come in pairs. This function creates one from the other.
+def conjugate_pair(sx):
+    b00 = sx[:3, :3]
+    b01 = sx[:3, 3:]
+    b10 = sx[3:, :3]
+    b11 = sx[3:, 3:]
+    sx1 = np.block([[dag(b11), dag(b10)], [dag(b01), dag(b00)]])
+    return sx1
 
 
 def angler(x):

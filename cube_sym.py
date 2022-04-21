@@ -42,7 +42,6 @@ c = c[x_perm, :, :]
 c = c[:, y_perm, :]
 c = c[:, :, z_perm]
 
-
 # that's the extra cyclic permutation of the lower half of the Szollosi
 # that makes it diag([1 1 1 phi phi phi]) times the textbook version.
 if filename == "triplets/triplet_mub_00018.npy":
@@ -184,9 +183,9 @@ assert np.allclose(evaluate(c_semisym), c, atol=1e-4)
 
 
 # sy as in y-directional slice, a Fourier matrix.
-sy_sym = Matrix([[symbols(f'F_{i}{j}') for j in range(6)] for i in range(6)])
-phis = symbols('phi_0 phi_1 phi_2')
-variables = [symbols(f'F_{i}{j}') for j in range(6) for i in range(6)] + list(phis)
+sy_sym = Matrix([[symbols(f'f_{i+1}{j+1}') for j in range(6)] for i in range(6)])
+phis = symbols('phi_1 phi_2 phi_3')
+variables = [symbols(f'f_{i+1}{j+1}') for j in range(6) for i in range(6)] + list(phis)
 
 
 slicepair_data_sym = [(sy_sym[2 * i, :], phis[i]) for i in range(3)]
@@ -249,7 +248,7 @@ y_unitarity_constraints = collect_constraints(prody)
 z_unitarity_constraints = collect_constraints(prodz)
 
 
-unitarity_constraints = oned_constraints + x_unitarity_constraints + y_unitarity_constraints + z_unitarity_constraints
+unitarity_constraints = x_unitarity_constraints + y_unitarity_constraints + z_unitarity_constraints + oned_constraints
 
 # that's no good, a y and a z slice are not unbiased by default.
 '''
