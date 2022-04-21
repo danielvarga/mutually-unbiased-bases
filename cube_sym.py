@@ -219,15 +219,34 @@ def extract_constraints_from_symbolic_cube(c):
     unitarity_constraints = []
     for direction in range(3):
         for coord in range(6):
+
+            if direction == 0:
+                # we observe that for the sx slices,
+                # the odd ones give the same constraints as the even ones.
+                # to save running time, we don't even extract the odd ones:
+                if coord % 2 == 1:
+                    continue
+            else:
+                # we observe that for the sy and sz slices,
+                # one slice is enough, the rest give redundant constraints.
+                # moreover the sy and the sz slice gives the same constraints, but
+                # we do not hardwire this here:
+                if coord > 0:
+                    continue
+
             s_sym = Matrix(slic(c_sym, direction, coord))
             s = slic(c, direction, coord)
             assert np.allclose(evaluate(substitute_slicepair_data(s_sym, slicepair_data_sym, slicepair_data)), s, atol=1e-4)
 
             prod = Dagger(s_sym) @ s_sym - eye(6) * 6
             prod = enforce_norm_one(prod, variables)
-            print("s^* s - 6Id", prod)
+
+            # we observe that sy and sz unitarity constraints are always divisible by 2.
+            if direction !=0:
+                prod /= 2
+
             prod_semisym = substitute_slicepair_data(prod, slicepair_data_sym, slicepair_data)
-            print(evaluate(prod_semisym))
+            assert np.allclose(evaluate(prod_semisym), 0, atol=1e-4)
 
             unitarity_constraints += collect_constraints(prod)
 
@@ -239,5 +258,6 @@ def extract_constraints_from_symbolic_cube(c):
 
 constraints = extract_constraints_from_symbolic_cube(c)
 
+print("Collected constraints:")
 for cons in constraints:
     print(latex(Eq(cons, 0)))
