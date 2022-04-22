@@ -26,28 +26,15 @@ c = hadamard_cube(a)
 verify_cube_properties(c)
 
 
+
+
+
 def truncate_canon(g):
     F = canonical_fourier(g['x'], g['y'])
     gi = invert(g)
     # The magnitude of gi['d_r'] is 1/sqrt(6), we have to put that
     # back if we drop gi['d_r']
     return gi['d_l'] @ gi['p_l'] @ F / 6 ** 0.5
-
-
-b1_canon = get_canonizer(a[1])
-a[1] = truncate_canon(b1_canon)
-b2_canon = get_canonizer(a[2])
-a[2] = truncate_canon(b2_canon)
-
-verify_mub(a)
-c = hadamard_cube(a)
-verify_cube_properties(c)
-
-
-b1_canon = get_canonizer(a[1])
-b2_canon = get_canonizer(a[2])
-print(b1_canon)
-print(b2_canon)
 
 
 def is_row_structure_compatible(b1, b2):
@@ -58,6 +45,51 @@ def is_row_structure_compatible(b1, b2):
     return tripart_col_1 == tripart_col_2
 
 
+# more percisely, find_permutation_that_turns_blocks_to_circulant()
+# apply at most 2 transpositons to a[2] columns
+# so that sx becomes block-circulant.
+# permuting a[2] columns permutes sx columns,
+# permuting a[1] columns permutes sx rows.
+# assumes that the bipartition is standard (012)(345).
+def turn_blocks_to_circulant(b):
+    perm = list(range(6))
+    w = visualize_clusters(b, group_conjugates=False)
+    if w[2, 1] == w[1, 2]:
+        perm[2], perm[1] = perm[1], perm[2]
+    if w[4, 5] == w[5, 4]:
+        perm[4], perm[5] = perm[5], perm[4]
+    return perm
+
+
+def check_phi_property(b, atol=1e-4):
+    b2 = szollosi_original(b[0, :])
+    ratio = b / b2
+    phi_candidate = ratio[3, 0]
+    ratio[3:, :] /= phi_candidate
+    if np.allclose(ratio, 1, atol=atol):
+        return phi_candidate
+    else:
+        return None
+
+
+def turn_lower_half_to_single_phi(a_orig):
+    a = a_orig.copy()
+    for i in range(3):
+        c = hadamard_cube(a)
+        phi = check_phi_property(c[0, :, :])
+        if phi is not None:
+            return a, phi
+        a[1] = a[1][:, [0, 1, 2, 4, 5, 3]]
+        print("rotating second triangle of a[1] to get constant phi")
+    assert False, "none of the rotations leads to a constant phi"
+
+
+# 1. rearranges the MUB columns and MUB rows so that
+#    the cube has a block structure consisting of 3x3x2 blocks.
+# 2. permutes within block so that each 3x3 is circulant.
+# 3. permutes the lower half of the sx slices
+#    (more exactly, the a[1] columns) so that the lower half
+#    is constant phi times the Szollosi formula (6).
 def reorder_mub(a_orig):
     a = a_orig.copy()
     assert is_row_structure_compatible(a[1], a[2])
@@ -67,114 +99,84 @@ def reorder_mub(a_orig):
     verify_mub(a)
     c = hadamard_cube(a)
     verify_cube_properties(c)
+
+    perm = turn_blocks_to_circulant(c[0, :, :])
+    a[2] = a[2][:, perm]
+
+    c = hadamard_cube(a)
+    verify_cube_properties(c)
+
+    perm = turn_blocks_to_circulant(c[0, :, :])
+    assert perm == list(range(6))
+
+    a, phi = turn_lower_half_to_single_phi(a)
+
     return a
 
 
-# apply at most 2 transpositons to a[2] columns
-# so that sx becomes block-circulant.
-# permuting a[2] columns permutes sx columns,
-# permuting a[1] columns permutes sx rows.
-def turn_blocks_to_circulant(b):
-    raise "unimplemented"
+# does two things:
+# 1. deduces their generalized F-form from the MUB elements,
+#    and removes the superfluous right actions.
+# 2. permutes the MUB rows and columns so that
+#    the appropriate block-circulant structure and conjugate
+#    pairing appears.
+def standardize_mub(a):
+    b1_canon = get_canonizer(a[1])
+    a[1] = truncate_canon(b1_canon)
+
+    b2_canon = get_canonizer(a[2])
+    a[2] = truncate_canon(b2_canon)
+
+    verify_mub(a)
+    c = hadamard_cube(a)
+    verify_cube_properties(c)
+
+    a = reorder_mub(a)
+
+    verify_mub(a)
+    c = hadamard_cube(a)
+    verify_cube_properties(c)
+
+    return a
 
 
-a = reorder_mub(a)
-c = hadamard_cube(a)
-print(angler(c[0, :3, :3]))
-print(angler(c))
-print("----")
-a[1] = a[1][:, [0, 2, 1, 3, 4, 5]]
-verify_mub(a)
-c = hadamard_cube(a)
-verify_cube_properties(c)
-print(angler(c[0, :3, :3]))
-print(angler(c))
-
-exit()
-
-
-sx = c[0, :, :]
-sy = c[:, 0, :]
-sz = c[:, :, 0]
-
-
-a[1] = arrange_blocks(a[1])
-a[2] = arrange_blocks(a[2])
-
-verify_mub(a)
-
-c = hadamard_cube(a)
-
-verify_cube_properties(c)
-
-
-print(angler(c))
+a = standardize_mub(a)
 
 exit()
 
 
-# g = {'d_l' : Dl, 'd_r' : Dr, 'p_l' : row_perm, 'p_r' : col_perm, 'x' : p[0], 'y' : p[1]}
+def test_equivalences(a):
+    c = hadamard_cube(a)
+    sx = c[0, :, :]
+    sy = c[:, 0, :]
+    sz = c[:, :, 0]
 
-prod = trans(a[1], a[2])
+    prod = trans(a[1], a[2])
 
-print(is_phase_equivalent(sx, prod))
-print(is_phase_equivalent(sy, a[2]))
-print(is_phase_equivalent(sz, a[1]))
+    print(is_phase_equivalent(sx, prod))
+    print(is_phase_equivalent(sy, a[2]))
+    print(is_phase_equivalent(sz, a[1]))
 
-print(is_equivalent(sx, prod))
-print(is_equivalent(sy, a[2]))
-print(is_equivalent(sz, a[1]))
+    print(is_equivalent(sx, prod))
+    print(is_equivalent(sy, a[2]))
+    print(is_equivalent(sz, a[1]))
 
-print("sx dephased", complex_dephase(sx))
-print("prod dephased", complex_dephase(prod))
-print("div", complex_dephase(prod)[0] / complex_dephase(sx)[0])
+    print("sx dephased", complex_dephase(sx))
+    print("prod dephased", complex_dephase(prod))
+    print("div", complex_dephase(prod)[0] / complex_dephase(sx)[0])
 
-print("sy dephased", complex_dephase(sy))
-print("a[2] dephased", complex_dephase(np.conjugate(a[2])))
-print("div", complex_dephase(np.conjugate(a[2]))[0] / complex_dephase(sy)[0])
+    print("sy dephased", complex_dephase(sy))
+    print("a[2] dephased", complex_dephase(np.conjugate(a[2])))
+    print("div", complex_dephase(np.conjugate(a[2]))[0] / complex_dephase(sy)[0])
 
-print("sz dephased", complex_dephase(sz))
-print("a[1] dephased", complex_dephase(a[1]))
-print("div", complex_dephase(a[1])[0] / complex_dephase(sz)[0])
+    print("sz dephased", complex_dephase(sz))
+    print("a[1] dephased", complex_dephase(a[1]))
+    print("div", complex_dephase(a[1])[0] / complex_dephase(sz)[0])
 
-print("sy0", get_canonizer(sy))
-print("sz0", get_canonizer(sz))
-print("a", get_canonizer(a[1]))
-print("b", get_canonizer(a[2]))
-exit()
-
-
-
-
-
-
-
-if filename.endswith("triplet_mub_00018.npy"):
-    x_perm = [0, 1, 2, 3, 4, 5]
-    y_perm = [0, 4, 1, 2, 3, 5]
-    z_perm = [0, 4, 2, 3, 5, 1]
-elif filename.endswith("triplet_mub_00171.npy"):
-    x_perm = [0, 2, 1, 5, 3, 4]
-    y_perm = [0, 1, 2, 3, 4, 5]
-    z_perm = [0, 5, 1, 2, 4, 3]
-else:
-    print("WARNING: no manually computed permutations available")
-    x_perm = y_perm = z_perm = range(6)
-c = c[x_perm, :, :]
-c = c[:, y_perm, :]
-c = c[:, :, z_perm]
-
-# that's the extra cyclic permutation of the lower half of the Szollosi
-# that makes it diag([1 1 1 phi phi phi]) times the textbook version.
-if filename == "triplets/triplet_mub_00018.npy":
-    c = c[:, [0, 1, 2, 5, 3, 4], :]
-elif filename.endswith("triplet_mub_00171.npy"):
-    pass # good already
-
-
-
-
-
+    print("sy0", get_canonizer(sy))
+    print("sz0", get_canonizer(sz))
+    print("a", get_canonizer(a[1]))
+    print("b", get_canonizer(a[2]))
 
 
 def recreate_slice(firstrow, phi):

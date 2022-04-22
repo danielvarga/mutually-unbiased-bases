@@ -464,3 +464,24 @@ def conjugate_pair(sx):
 
 def angler(x):
     return np.angle(x) * 180 / np.pi
+
+
+def visualize_clusters(c, group_conjugates=True):
+    n = 6
+    N = 10000
+    bins = (N * np.angle(c)).astype(int)
+    if group_conjugates:
+        bins = np.abs(bins)
+    vals, cnts = np.unique(bins.flatten(), return_counts=True)
+
+    # for a full cube every color appears 6 times.
+    #   (or 3 times if conjugates are not grouped)
+    # for a single slice it's either all distinct or
+    # every color appears 3 times.
+    # for sporadic Fouriers (6th roots of unity) it's 12 or 6 per color.
+    assert np.all(cnts == 6) or np.all(cnts == 1) or np.all(cnts == 3) \
+        or sorted(cnts) == [6, 6, 12, 12]
+    dists = bins[..., None] - vals[None, :]
+    close = np.isclose(dists, 0)
+    which = np.argmax(close, axis=-1)
+    return which
