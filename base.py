@@ -132,7 +132,47 @@ def test_is_compatible():
 # test_is_compatible() ; exit()
 
 
-def get_canonizer(b, bipart_col=None, tripart_row=None):
+def invert(g):
+    g_inv = {'d_l' : g['p_l'].T @ g['d_l'].conjugate() @ g['p_l'],
+            'p_l' : g['p_l'].T,
+            'd_r' : g['p_r'] @ g['d_r'].conjugate() @ g['p_r'].T,
+            'p_r' : g['p_r'].T}
+    return g_inv
+
+
+def multiply(g, h):
+    gh = {'d_l' : np.multiply(g['d_l'], g['p_l'] @ h['d_l'] @ g['p_l'].T),
+          'p_l' : g['p_l'] @ h['p_l'],
+          'd_r' : np.multiply(g['p_r'].T @ h['d_r'] @ g['p_r'], g['d_r']),
+          'p_r' : h['p_r'] @ g['p_r']}
+    return gh
+
+
+def act(g, x):
+    return g['d_l'] @ g['p_l'] @ x @ g['p_r'] @ g['d_r']
+
+
+def rebuild_from_canon(g):
+    F = canonical_fourier(g['x'], g['y'])
+    return act(invert(g), F)
+
+
+def get_canonizer(M):
+    ps = list(permutations(range(6)))
+    for perm1 in ps:
+        perm1m = np.eye(6)[perm1, :]
+        for perm2 in ps:
+            perm2m = np.eye(6)[perm2, :]
+            M_permuted = perm1m @ M @ perm2m
+            M_dephased, Dl, Dr = complex_dephase(M_permuted)
+            p = get_complex_fourier(M_dephased)
+            if p != None:
+                g = {'d_l' : np.diag(np.conj(Dl[:, 0])), 'd_r' : np.diag(np.conj(Dr)), 'p_l' : perm1m, 'p_r' : perm2m, 'x' : p[0], 'y' : p[1]
+                    }
+                return g
+    return None
+
+def get_canonizer_bad(b, bipart_col=None, tripart_row=None):
     ps = list(permutations(range(6)))
     col_perms = ps # [perm for perm in ps if is_compatible(perm, bipart_col)]
     row_perms = ps # [perm for perm in ps if is_compatible(perm, tripart_row)]
@@ -250,6 +290,21 @@ def find_blocks(b, allow_transposal=False):
     if not(len(tripart_row) == 3 and all(len(tripart_row[i]) == 2 for i in range(3))):
         return None
     return bipart_col, tripart_row, is_transposed
+
+
+# does not and cannot arrange within blocks. (2x2x2 x 6x6 choices)
+# does not and cannot arrange blocks either. (2 x 6 choices)
+# but at least after arrangement it obeys the block partition.
+def arrange_blocks(b):
+    result = find_blocks(b, allow_transposal=False)
+    assert result is not None
+    bipart_col, tripart_row, is_transposed = result
+    col_perm = list(bipart_col[0]) + list(bipart_col[1])
+    row_perm = list(tripart_row[0]) + list(tripart_row[1]) + list(tripart_row[2])
+    b = b[:, col_perm]
+    b = b[row_perm, :]
+    result = find_blocks(b, allow_transposal=False)
+    return b
 
 
 def hadamard_cube(a, pad_with_id=True):

@@ -22,10 +22,132 @@ for i in range(1, len(a)):
     verify_hadamard(a[i])
 
 verify_mub(a)
+c = hadamard_cube(a)
+verify_cube_properties(c)
+
+
+def truncate_canon(g):
+    F = canonical_fourier(g['x'], g['y'])
+    gi = invert(g)
+    # The magnitude of gi['d_r'] is 1/sqrt(6), we have to put that
+    # back if we drop gi['d_r']
+    return gi['d_l'] @ gi['p_l'] @ F / 6 ** 0.5
+
+
+b1_canon = get_canonizer(a[1])
+a[1] = truncate_canon(b1_canon)
+b2_canon = get_canonizer(a[2])
+a[2] = truncate_canon(b2_canon)
+
+verify_mub(a)
+c = hadamard_cube(a)
+verify_cube_properties(c)
+
+
+b1_canon = get_canonizer(a[1])
+b2_canon = get_canonizer(a[2])
+print(b1_canon)
+print(b2_canon)
+
+
+def is_row_structure_compatible(b1, b2):
+    result_1 = find_blocks(b1, allow_transposal=False)
+    bipart_col_1, tripart_col_1, is_transposed_1 = result_1
+    result_2 = find_blocks(b2, allow_transposal=False)
+    bipart_col_2, tripart_col_2, is_transposed_2 = result_2
+    return tripart_col_1 == tripart_col_2
+
+
+def reorder_mub(a_orig):
+    a = a_orig.copy()
+    assert is_row_structure_compatible(a[1], a[2])
+    # if yes, we can safely apply it individually to permute rows.
+    a[1] = arrange_blocks(a[1])
+    a[2] = arrange_blocks(a[2])
+    verify_mub(a)
+    c = hadamard_cube(a)
+    verify_cube_properties(c)
+    return a
+
+
+# apply at most 2 transpositons to a[2] columns
+# so that sx becomes block-circulant.
+# permuting a[2] columns permutes sx columns,
+# permuting a[1] columns permutes sx rows.
+def turn_blocks_to_circulant(b):
+    raise "unimplemented"
+
+
+a = reorder_mub(a)
+c = hadamard_cube(a)
+print(angler(c[0, :3, :3]))
+print(angler(c))
+print("----")
+a[1] = a[1][:, [0, 2, 1, 3, 4, 5]]
+verify_mub(a)
+c = hadamard_cube(a)
+verify_cube_properties(c)
+print(angler(c[0, :3, :3]))
+print(angler(c))
+
+exit()
+
+
+sx = c[0, :, :]
+sy = c[:, 0, :]
+sz = c[:, :, 0]
+
+
+a[1] = arrange_blocks(a[1])
+a[2] = arrange_blocks(a[2])
+
+verify_mub(a)
 
 c = hadamard_cube(a)
 
 verify_cube_properties(c)
+
+
+print(angler(c))
+
+exit()
+
+
+# g = {'d_l' : Dl, 'd_r' : Dr, 'p_l' : row_perm, 'p_r' : col_perm, 'x' : p[0], 'y' : p[1]}
+
+prod = trans(a[1], a[2])
+
+print(is_phase_equivalent(sx, prod))
+print(is_phase_equivalent(sy, a[2]))
+print(is_phase_equivalent(sz, a[1]))
+
+print(is_equivalent(sx, prod))
+print(is_equivalent(sy, a[2]))
+print(is_equivalent(sz, a[1]))
+
+print("sx dephased", complex_dephase(sx))
+print("prod dephased", complex_dephase(prod))
+print("div", complex_dephase(prod)[0] / complex_dephase(sx)[0])
+
+print("sy dephased", complex_dephase(sy))
+print("a[2] dephased", complex_dephase(np.conjugate(a[2])))
+print("div", complex_dephase(np.conjugate(a[2]))[0] / complex_dephase(sy)[0])
+
+print("sz dephased", complex_dephase(sz))
+print("a[1] dephased", complex_dephase(a[1]))
+print("div", complex_dephase(a[1])[0] / complex_dephase(sz)[0])
+
+print("sy0", get_canonizer(sy))
+print("sz0", get_canonizer(sz))
+print("a", get_canonizer(a[1]))
+print("b", get_canonizer(a[2]))
+exit()
+
+
+
+
+
+
 
 if filename.endswith("triplet_mub_00018.npy"):
     x_perm = [0, 1, 2, 3, 4, 5]
@@ -48,6 +170,11 @@ if filename == "triplets/triplet_mub_00018.npy":
     c = c[:, [0, 1, 2, 5, 3, 4], :]
 elif filename.endswith("triplet_mub_00171.npy"):
     pass # good already
+
+
+
+
+
 
 
 def recreate_slice(firstrow, phi):
