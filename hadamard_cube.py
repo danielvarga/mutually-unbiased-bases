@@ -9,27 +9,6 @@ from matplotlib.lines import Line2D
 from base import *
 
 
-def visualize_clusters(c, group_conjugates=True):
-    n = 6
-    N = 10000
-    bins = (N * np.angle(c)).astype(int)
-    if group_conjugates:
-        bins = np.abs(bins)
-    vals, cnts = np.unique(bins.flatten(), return_counts=True)
-
-    # for a full cube every color appears 6 times.
-    #   (or 3 times if conjugates are not grouped)
-    # for a single slice it's either all distinct or
-    # every color appears 3 times.
-    # for sporadic Fouriers (6th roots of unity) it's 12 or 6 per color.
-    assert np.all(cnts == 6) or np.all(cnts == 1) or np.all(cnts == 3) \
-        or sorted(cnts) == [6, 6, 12, 12]
-    dists = bins[..., None] - vals[None, :]
-    close = np.isclose(dists, 0)
-    which = np.argmax(close, axis=-1)
-    return which
-
-
 def visualize(c):
     cmap = plt.cm.viridis
 
@@ -217,7 +196,7 @@ def dump_eigenvectors(c):
     print("slice eigenvectors equivalent:", is_equivalent(vectors0, vectors1))
 
 
-dump_eigenvectors(c) ; exit()
+# dump_eigenvectors(c) ; exit()
 
 
 def test_cube_invariances(a_orig):

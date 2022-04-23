@@ -468,7 +468,7 @@ def angler(x):
 
 def visualize_clusters(c, group_conjugates=True):
     n = 6
-    N = 10000
+    N = 100000
     bins = (N * np.angle(c)).astype(int)
     if group_conjugates:
         bins = np.abs(bins)

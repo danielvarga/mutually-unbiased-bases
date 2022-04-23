@@ -26,7 +26,56 @@ c = hadamard_cube(a)
 verify_cube_properties(c)
 
 
+# a[indx]^dag is left-applied to everybody. so that it turns into Id.
+# then MUB elements are rotated among themselves
+# so that a[index] becomes a[0]
+def swap_identity(a, indx):
+    if indx == 0:
+        return a.copy()
 
+    assert np.allclose(a[0], np.eye(6))
+    a2 = a.copy()
+    a2[1] = trans(a[indx], a[0])
+    a2[2] = trans(a[indx], a[3 - indx])
+    verify_mub(a2)
+    return a2
+
+
+def standardize_triplet_order(a):
+    a_orig = a.copy()
+    for i in range(3):
+        a = swap_identity(a_orig, i)
+        result1 = find_blocks(a[1], allow_transposal=False)
+        result2 = find_blocks(a[2], allow_transposal=False)
+        if result1 is not None and result2 is not None:
+            # not transposed
+            assert not result1[2] and not result2[2]
+            return a
+    return None
+
+
+def mub_type(a):
+    # by convention
+    # counts[0] is number of Fourier,
+    # counts[1] is number of Fourier-transposed
+    # counts[2] is number of neither.
+    counts = [0, 0, 0]
+    for i in range(3):
+        for j in range(3):
+            if i == j:
+                continue
+            result = find_blocks(trans(a[i], a[j]), allow_transposal=True)
+            if result is None:
+                counts[2] += 1
+            else:
+                _, _, is_transposed = result
+                counts[int(is_transposed)] += 1
+    if counts == [6, 0, 0]:
+        return "sporadic"
+    elif counts == [2, 2, 2]:
+        return "Szollosi"
+    else:
+        return "WTF"
 
 
 def truncate_canon(g):
@@ -80,7 +129,7 @@ def turn_lower_half_to_single_phi(a_orig):
         if phi is not None:
             return a, phi
         a[1] = a[1][:, [0, 1, 2, 4, 5, 3]]
-        print("rotating second triangle of a[1] to get constant phi")
+        # print("rotating second triangle of a[1] to get constant phi")
     assert False, "none of the rotations leads to a constant phi"
 
 
@@ -120,16 +169,17 @@ def reorder_mub(a_orig):
 # 2. permutes the MUB rows and columns so that
 #    the appropriate block-circulant structure and conjugate
 #    pairing appears.
-def standardize_mub(a):
-    b1_canon = get_canonizer(a[1])
-    a[1] = truncate_canon(b1_canon)
+def standardize_mub(a, remove_right_action=False):
+    if remove_right_action:
+        b1_canon = get_canonizer(a[1])
+        a[1] = truncate_canon(b1_canon)
 
-    b2_canon = get_canonizer(a[2])
-    a[2] = truncate_canon(b2_canon)
+        b2_canon = get_canonizer(a[2])
+        a[2] = truncate_canon(b2_canon)
 
-    verify_mub(a)
-    c = hadamard_cube(a)
-    verify_cube_properties(c)
+        verify_mub(a)
+        c = hadamard_cube(a)
+        verify_cube_properties(c)
 
     a = reorder_mub(a)
 
@@ -139,8 +189,17 @@ def standardize_mub(a):
 
     return a
 
+mub_type_name = mub_type(a)
+if mub_type_name != "Szollosi":
+    print(mub_type_name)
+    exit()
 
-a = standardize_mub(a)
+a = standardize_triplet_order(a)
+a = standardize_mub(a, remove_right_action=True)
+
+
+c = hadamard_cube(a)
+print(np.diag(visualize_clusters(c[0, :, :])))
 
 exit()
 
