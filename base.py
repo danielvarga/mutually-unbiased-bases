@@ -35,6 +35,21 @@ def dephase(bb):
     return b
 
 
+def switch_perm_phase(pm, phases):
+    matrix = pm @ np.diag(phases)
+    phases2 = np.sum(matrix, axis=1)
+    matrix2 = np.diag(1 / phases2) @ matrix
+    assert np.allclose(matrix, np.diag(phases2) @ matrix2)
+    assert np.allclose(matrix2 * (matrix2 - 1), 0)
+    pm2 = np.around(matrix2).real.astype(int)
+    return phases2, pm2
+
+
+def switch_phase_perm(phases, pm):
+    phases2, pm2 = switch_perm_phase(pm.T, phases)
+    return pm2.T, phases2
+
+
 def graph_to_partition(g):
     g = sorted(g)
     sets = []
