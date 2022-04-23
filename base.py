@@ -147,6 +147,33 @@ def test_is_compatible():
 # test_is_compatible() ; exit()
 
 
+def is_diagonal(x):
+    return np.allclose(x, np.diag(np.diagonal(x)))
+
+def create_action(dl, pl, pr, dr):
+    assert is_diagonal(dl)
+    assert is_diagonal(dr)
+    g = {'d_l' : dl,
+          'p_l' : pl,
+          'd_r' : dr,
+          'p_r' : pr
+          }
+    return g
+
+
+def create_generalized_fourier(dl, pl, x, y, pr, dr):
+    assert is_diagonal(dl)
+    assert is_diagonal(dr)
+    g = {'d_l' : dl,
+          'p_l' : pl,
+          'd_r' : dr,
+          'p_r' : pr,
+          'x': x,
+          'y': y
+          }
+    return g
+
+
 def invert(g):
     g_inv = {'d_l' : g['p_l'].T @ g['d_l'].conjugate() @ g['p_l'],
             'p_l' : g['p_l'].T,

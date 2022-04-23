@@ -78,18 +78,16 @@ def mub_type(a):
         return "WTF"
 
 
-# TODO should return a canon not a matrix.
 def truncate_canon(g, also_left_perm=False):
-    F = canonical_fourier(g['x'], g['y'])
-
+    Id = np.eye(6, dtype=np.complex128)
     # The magnitude of gi['d_r'] is 1/sqrt(6), we have to put that
     # back if we drop gi['d_r']
     if also_left_perm:
         phases, perm_m = np.diag(g['d_l']), g['p_l']
         switched_perm_m, switched_phases = switch_phase_perm(phases, perm_m)
-        return np.diag(switched_phases) @ F / 6 ** 0.5
+        return create_generalized_fourier(np.diag(switched_phases), Id, g['x'], g['y'], Id, Id / 6 ** 0.5)
     else:
-        return g['d_l'] @ g['p_l'] @ F / 6 ** 0.5
+        create_generalized_fourier(g['d_l'], g['p_l'], g['x'], g['y'], Id, Id / 6 ** 0.5)
 
 
 def is_row_structure_compatible(b1, b2):
@@ -181,9 +179,19 @@ def standardize_mub(a, remove_right_action=False):
         b2_canon = get_canonizer(a[2])
         # assert np.all(b1_canon['p_l'] == b2_canon['p_l'])
 
-        a[1] = truncate_canon(b1_canon, also_left_perm=True)
-        a[2] = truncate_canon(b2_canon, also_left_perm=True)
-        print(np.argmax(b1_canon['p_l'], axis=1), np.argmax(b2_canon['p_l'], axis=1))
+        b1_truncated_canon = truncate_canon(b1_canon, also_left_perm=True)
+        b2_truncated_canon = truncate_canon(b2_canon, also_left_perm=True)
+        dl1 = b1_truncated_canon['d_l']
+        b2_truncated_canon['d_l'] *= np.conjugate(dl1)
+        b1_truncated_canon['d_l'] *= np.conjugate(dl1)
+
+        def pretty(canon):
+            print(angler(np.diag(canon['d_l'])), angler(canon['x']), angler(canon['y']))
+        pretty(b1_truncated_canon)
+        pretty(b2_truncated_canon)
+
+        a[1] = rebuild_from_canon(b1_truncated_canon)
+        a[2] = rebuild_from_canon(b2_truncated_canon)
 
         verify_mub(a)
         c = hadamard_cube(a)
