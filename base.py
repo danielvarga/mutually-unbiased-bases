@@ -169,7 +169,7 @@ def act(g, x):
 
 def rebuild_from_canon(g):
     F = canonical_fourier(g['x'], g['y'])
-    return act(invert(g), F)
+    return act(g, F)
 
 
 def get_canonizer(M):
@@ -182,8 +182,10 @@ def get_canonizer(M):
             M_dephased, Dl, Dr = complex_dephase(M_permuted)
             p = get_complex_fourier(M_dephased)
             if p != None:
-                g = {'d_l' : np.diag(np.conj(Dl[:, 0])), 'd_r' : np.diag(np.conj(Dr)), 'p_l' : perm1m, 'p_r' : perm2m, 'x' : p[0], 'y' : p[1]
+                g = {'d_l' : np.diag(np.conj(Dl[:, 0])), 'd_r' : np.diag(np.conj(Dr)), 'p_l' : perm1m, 'p_r' : perm2m
                     }
+                g = invert(g)
+                g.update({'x' : p[0], 'y' : p[1]})
                 return g
     return None
 

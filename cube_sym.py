@@ -81,16 +81,15 @@ def mub_type(a):
 # TODO should return a canon not a matrix.
 def truncate_canon(g, also_left_perm=False):
     F = canonical_fourier(g['x'], g['y'])
-    gi = invert(g)
 
     # The magnitude of gi['d_r'] is 1/sqrt(6), we have to put that
     # back if we drop gi['d_r']
     if also_left_perm:
-        phases, perm_m = np.diag(gi['d_l']), gi['p_l']
+        phases, perm_m = np.diag(g['d_l']), g['p_l']
         switched_perm_m, switched_phases = switch_phase_perm(phases, perm_m)
         return np.diag(switched_phases) @ F / 6 ** 0.5
     else:
-        return gi['d_l'] @ gi['p_l'] @ F / 6 ** 0.5
+        return g['d_l'] @ g['p_l'] @ F / 6 ** 0.5
 
 
 def is_row_structure_compatible(b1, b2):
@@ -179,9 +178,10 @@ def reorder_mub(a_orig):
 def standardize_mub(a, remove_right_action=False):
     if remove_right_action:
         b1_canon = get_canonizer(a[1])
-        a[1] = truncate_canon(b1_canon, also_left_perm=True)
-
         b2_canon = get_canonizer(a[2])
+        # assert np.all(b1_canon['p_l'] == b2_canon['p_l'])
+
+        a[1] = truncate_canon(b1_canon, also_left_perm=True)
         a[2] = truncate_canon(b2_canon, also_left_perm=True)
         print(np.argmax(b1_canon['p_l'], axis=1), np.argmax(b2_canon['p_l'], axis=1))
 
