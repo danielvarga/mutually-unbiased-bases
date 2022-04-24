@@ -202,8 +202,8 @@ def standardize_mub(a):
 
     def pretty(canon):
         print(angler(np.diag(canon['d_l'])), angler(canon['x']), angler(canon['y']))
-    pretty(b1_truncated_canon)
-    pretty(b2_truncated_canon)
+    # pretty(b1_truncated_canon)
+    # pretty(b2_truncated_canon)
 
     a[1] = rebuild_from_canon(b1_truncated_canon)
     a[2] = rebuild_from_canon(b2_truncated_canon)
@@ -222,16 +222,24 @@ def standardize_mub(a):
     c = hadamard_cube(a)
     verify_cube_properties(c)
 
-    return a
+    x1y1 = (b1_truncated_canon['x'], b1_truncated_canon['y'])
+    dl2 = b2_truncated_canon['d_l']
+    x2y2 = (b2_truncated_canon['x'], b2_truncated_canon['y'])
+    return a, x1y1, dl2, x2y2
+
 
 mub_type_name = mub_type(a)
 if mub_type_name != "Szollosi":
-    print(mub_type_name)
+    print("filename", filename, mub_type_name)
     exit()
 
 a = standardize_triplet_order(a)
-a = standardize_mub(a)
-
+a, x1y1, dl2, x2y2 = standardize_mub(a)
+x1, y1 = x1y1
+x2, y2 = x2y2
+print("filename", filename, "x1", angler(x1), "y1", angler(y1),
+    "x2", angler(x2), "y2", angler(y2), "Dl2", angler(np.diag(dl2)))
+exit()
 
 c = hadamard_cube(a)
 print(np.diag(visualize_clusters(c[0, :, :])))
@@ -313,7 +321,7 @@ def szollosi_modified_sym(firstrow, phi):
 
 
 def conjugate_pair_sym(sx):
-    sxb = sx.copy()
+    sxb = Matrix(sx.copy())
     b00 = Dagger(sx[:3, :3])
     b01 = Dagger(sx[:3, 3:])
     b10 = Dagger(sx[3:, :3])
@@ -476,8 +484,151 @@ def extract_constraints_from_symbolic_cube(c):
     return constraints
 
 
+Wsym = symbols('W')
 
-constraints = extract_constraints_from_symbolic_cube(c)
+def symbolic_fourier_basis(x_var, y_var):
+    roots = [1, - Wsym ** 2, Wsym, -1, Wsym ** 2, - Wsym]
+    b = ones(6, 6)
+    for i in range(1, 6, 3):
+        for j in range(1, 6, 2):
+            b[i, j] *= x_var
+    for i in range(2, 6, 3):
+        for j in range(1, 6, 2):
+            b[i, j] *= y_var
+    for i in range(1, 6):
+        for j in range(1, 6):
+            b[i, j] *= roots[(i * j) % 6]
+    return b
+
+
+
+# the third element of the triplet is Id.
+def symbolic_hadamard_cube(b1, b2):
+    a = MutableDenseNDimArray([0] * 108, (3, 6, 6))
+    a[0, :, :] = eye(6)
+    a[1, :, :] = b1
+    a[2, :, :] = b2
+    c = MutableDenseNDimArray([0] * 216, (6, 6, 6))
+    for i in range(6):
+        for j in range(6):
+            for k in range(6):
+                c[i, j, k] = \
+                    Matrix(conjugate(a[0, :, i])).dot(a[1, :, j]) * \
+                    Matrix(conjugate(a[1, :, j])).dot(a[2, :, k]) * \
+                    Matrix(conjugate(a[2, :, k])).dot(a[0, :, i])
+    return ImmutableDenseNDimArray(6 * c)
+
+
+def simplify_roots(expr):
+    e = expr.subs(conjugate(Wsym), Wsym ** 2)
+    e = e.subs(Wsym ** 3, 1).subs(Wsym ** 4, Wsym).subs(Wsym ** 5, Wsym ** 2).subs(Wsym ** 6, 1)
+    return e
+
+
+# constraints = extract_constraints_from_symbolic_cube(c)
+
+
+TP = 2 * np.pi
+TIP = 2j * np.pi
+W = np.exp(TIP / 3)
+
+x1, y1 = x1y1
+x2, y2 = x2y2
+
+x1_sym, y1_sym = symbols('x_1 y_1')
+x2_sym, y2_sym = symbols('x_2 y_2')
+alpha_sym = [1] + list(symbols('alpha_2:7'))
+fourier1_sym = deinterlace(symbolic_fourier_basis(x1_sym, y1_sym) / sqrt(6))
+fourier2_sym = deinterlace(symbolic_fourier_basis(x2_sym, y2_sym) / sqrt(6))
+fourier2_sym = diag(*alpha_sym) @ fourier2_sym
+
+
+# not to be confused with c_sym later!
+cube_sym = symbolic_hadamard_cube(fourier1_sym, fourier2_sym)
+sx = simplify_roots(cube_sym[0, :, :]) * 6
+print(Matrix(sx[:3, :3]) - sx[0, 2] * ones(3))
+
+print("====")
+print(conjugate_pair_sym(sx))
+sx1 = simplify_roots(cube_sym[1, :, :]) * 6
+print("---")
+print(sx1)
+
+print(angler(conjugate_pair(c[0, :, :])))
+
+print(angler(c[1, :, :]))
+exit()
+
+
+prod = Dagger(fourier1_sym) @ fourier2_sym
+
+flattened = ones(36, 1)
+for row in range(6):
+    for col in range(6):
+        flattened[row * 6 + col] = simplify_roots(prod[row, col]) * 6
+
+print(latex(flattened))
+exit()
+
+
+
+slicepair_data = collect_slicepair_data(c)
+c_sym, sy_sym, phis, variables, slicepair_data_sym = create_symbolic_cube()
+x_sym, y_sym = symbols('x y')
+fourier_sym = deinterlace(symbolic_fourier_basis(x_sym, y_sym) / sqrt(6))
+reconstructed_b1 = evaluate(fourier_sym.subs(x_sym, x1).subs(y_sym, y1).subs(Wsym, W))
+assert np.allclose(reconstructed_b1, a[1], atol=1e-4)
+
+for row in range(6):
+    for col in range(6):
+        c_sym = c_sym.subs(sy_sym[row, col], fourier_sym[row, col])
+
+
+
+oned_constraints = []
+for i in range(6):
+    for j in range(6):
+        for oned in [c_sym[i, j, :], c_sym[:, i, j], c_sym[j, :, i]]:
+            # assert np.isclose(evaluate(substitute_slicepair_data(sum(oned), slicepair_data_sym, slicepair_data)), 1, atol=1e-4)
+            oned_constraints.append(sum(oned) - 1)
+
+unitarity_constraints = []
+for direction in range(3):
+    for coord in range(6):
+
+        if direction == 0:
+            # we observe that for the sx slices,
+            # the odd ones give the same constraints as the even ones.
+            # to save running time, we don't even extract the odd ones:
+            if coord % 2 == 1:
+                continue
+        else:
+            # we observe that for the sy and sz slices,
+            # one slice is enough, the rest give redundant constraints.
+            # moreover the sy and the sz slice gives the same constraints, but
+            # we do not hardwire this here:
+            if coord > 0:
+                continue
+
+        s_sym = Matrix(slic(c_sym, direction, coord))
+        s = slic(c, direction, coord)
+        assert np.allclose(evaluate(substitute_slicepair_data(s_sym, slicepair_data_sym, slicepair_data)), s, atol=1e-4)
+
+        prod = Dagger(s_sym) @ s_sym - eye(6) * 6
+        prod = enforce_norm_one(prod, variables)
+
+        # we observe that sy and sz unitarity constraints are always divisible by 2.
+        if direction !=0:
+            prod /= 2
+
+        prod_semisym = substitute_slicepair_data(prod, slicepair_data_sym, slicepair_data)
+        assert np.allclose(evaluate(prod_semisym), 0, atol=1e-4)
+
+        unitarity_constraints += collect_constraints(prod)
+
+constraints = unitarity_constraints + oned_constraints
+constraints = remove_redundant_constraints(constraints)
+
 
 print("Collected constraints:")
 for cons in constraints:
