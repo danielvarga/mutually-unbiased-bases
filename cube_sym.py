@@ -54,6 +54,22 @@ def standardize_triplet_order(a):
     return None
 
 
+# a canonical hadamard has its bipartition of columns interlaced like 010101
+# and its tripartition of rows interlaced like 012012.
+# here we rearrange it into 000111, 001122.
+def deinterlace(b_orig):
+    b = b_orig[[0, 3, 1, 4, 2, 5], :]
+    b = b[:, [0, 2, 4, 1, 3, 5]]
+    return b
+
+
+def hardwired_reorder(a_orig):
+    a = a_orig.copy()
+    a[1] = deinterlace(a[1])
+    a[2] = deinterlace(a[2])
+    return a
+
+
 def mub_type(a):
     # by convention
     # counts[0] is number of Fourier,
@@ -173,31 +189,34 @@ def reorder_mub(a_orig):
 # 2. permutes the MUB rows and columns so that
 #    the appropriate block-circulant structure and conjugate
 #    pairing appears.
-def standardize_mub(a, remove_right_action=False):
-    if remove_right_action:
-        b1_canon = get_canonizer(a[1])
-        b2_canon = get_canonizer(a[2])
-        # assert np.all(b1_canon['p_l'] == b2_canon['p_l'])
+def standardize_mub(a):
+    b1_canon = get_canonizer(a[1])
+    b2_canon = get_canonizer(a[2])
+    # assert np.all(b1_canon['p_l'] == b2_canon['p_l'])
 
-        b1_truncated_canon = truncate_canon(b1_canon, also_left_perm=True)
-        b2_truncated_canon = truncate_canon(b2_canon, also_left_perm=True)
-        dl1 = b1_truncated_canon['d_l']
-        b2_truncated_canon['d_l'] *= np.conjugate(dl1)
-        b1_truncated_canon['d_l'] *= np.conjugate(dl1)
+    b1_truncated_canon = truncate_canon(b1_canon, also_left_perm=True)
+    b2_truncated_canon = truncate_canon(b2_canon, also_left_perm=True)
+    dl1 = b1_truncated_canon['d_l']
+    b2_truncated_canon['d_l'] *= np.conjugate(dl1)
+    b1_truncated_canon['d_l'] *= np.conjugate(dl1)
 
-        def pretty(canon):
-            print(angler(np.diag(canon['d_l'])), angler(canon['x']), angler(canon['y']))
-        pretty(b1_truncated_canon)
-        pretty(b2_truncated_canon)
+    def pretty(canon):
+        print(angler(np.diag(canon['d_l'])), angler(canon['x']), angler(canon['y']))
+    pretty(b1_truncated_canon)
+    pretty(b2_truncated_canon)
 
-        a[1] = rebuild_from_canon(b1_truncated_canon)
-        a[2] = rebuild_from_canon(b2_truncated_canon)
+    a[1] = rebuild_from_canon(b1_truncated_canon)
+    a[2] = rebuild_from_canon(b2_truncated_canon)
 
-        verify_mub(a)
-        c = hadamard_cube(a)
-        verify_cube_properties(c)
+    verify_mub(a)
+    c = hadamard_cube(a)
+    verify_cube_properties(c)
 
-    a = reorder_mub(a)
+    # before all the left perm removal and such,
+    # reorder_mub(a) was needed to bring the MUB to standard form.
+    # after it, hardwired_reorder(a) is enough, a fixed, trivial rearrange.
+    # a = reorder_mub(a)
+    a = hardwired_reorder(a)
 
     verify_mub(a)
     c = hadamard_cube(a)
@@ -211,14 +230,11 @@ if mub_type_name != "Szollosi":
     exit()
 
 a = standardize_triplet_order(a)
-a = standardize_mub(a, remove_right_action=True)
+a = standardize_mub(a)
 
 
 c = hadamard_cube(a)
 print(np.diag(visualize_clusters(c[0, :, :])))
-
-
-exit()
 
 
 def test_equivalences(a):
