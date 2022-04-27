@@ -84,13 +84,14 @@ def loss_fn():
             s = slice_2d(var, direction, coord)
             l = hadamard_loss(s, alpha=alpha)
             terms.append(l)
+    main_slice = var[0, :, :]
     for direction in range(2):
-        one_dim_sums = tf.reduce_sum(var, axis=direction)
-        l = 1 / 36 * closeness(one_dim_sums, 1)
+        one_dim_sums = tf.reduce_sum(main_slice, axis=direction)
+        l = 100 * closeness(one_dim_sums, 1)
         terms.append(l)
     return sum(terms)
 
-opt = tf.keras.optimizers.SGD(learning_rate=0.04)
+opt = tf.keras.optimizers.SGD(learning_rate=0.0001)
 
 iteration_count = 10001
 iteration = 0
@@ -113,4 +114,4 @@ while iteration < iteration_count:
     iteration += 1
 
 
-np.save("cube_%05d.two_1d_slices_summing_to_1.npy" % run_id, var.numpy())
+np.save("cube_%05d.1d_slices_of_a_single_2d_slice_summing_to_1.npy" % run_id, var.numpy())
