@@ -26,6 +26,31 @@ c = hadamard_cube(a)
 verify_cube_properties(c)
 
 
+a_prime = cube_to_mub(c)
+verify_mub(a_prime)
+rank1_b1 = a_prime[1] / a[1]
+rank1_b2 = a_prime[2] / a[2]
+print(np.linalg.svd(rank1_b1)[1])
+print(np.linalg.svd(rank1_b2)[1])
+exit()
+
+# 00001
+# print(angler(c[:, :, 0][:, [0, 2, 5, 1, 4, 3]][[2, 3, 4, 0, 5, 1], :]))
+# 00075
+# print(angler(c[0, :, :][:, [0, 3, 5, 1, 4, 2]][[5, 1, 2, 3, 4, 1], :]))
+# print(angler(c[:, :, :][:, :, [0, 3, 5, 1, 4, 2]][:, [5, 1, 2, 3, 4, 1], :]))
+
+c = c[:, :, :][:, :, [0, 3, 5, 1, 4, 2]][:, [5, 1, 2, 3, 4, 1], :]
+
+sx = c[0, :, :]
+print(np.abs(sx))
+print(angler(sx))
+print(np.abs(trans(dag(sx), dag(sx))))
+exit()
+
+
+
+
 # a[indx]^dag is left-applied to everybody. so that it turns into Id.
 # then MUB elements are rotated among themselves
 # so that a[index] becomes a[0]

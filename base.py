@@ -506,6 +506,36 @@ def conjugate_pair(sx):
     return sx1
 
 
+def projection_to_vector(P):
+    u = P[:, 0]
+    return u / np.abs(u) / 6 ** 0.5
+
+    u, s, vh = np.linalg.svd(P)
+    return u[:, 0]
+
+def vector_to_projection(v):
+    w = v[np.newaxis]
+    P = w.T @ w
+    return P
+
+def cube_to_mub(H):
+    A = np.eye(6, dtype = np.complex128)
+    P = [np.zeros((6,6), dtype = np.complex128) for i in range(6)]
+    for i, p in enumerate(P):
+        p[i, i] = 1
+    B = H[:, :, 0]
+    Q = [vector_to_projection(B[:, i]) for i in range(6)]
+    R = []
+    for j in range(6):
+        R.append(np.zeros((6, 6), dtype = np.complex128))
+        for k in range(6):
+            for l in range(6):
+                R[-1] += np.conj(H[k, l, j]) * P[k] @ Q[l]
+    r_candidate = [projection_to_vector(r) for r in R]
+    C = np.array(r_candidate).T
+    return np.array([A, B, C])
+
+
 def angler(x):
     return np.angle(x) * 180 / np.pi
 
