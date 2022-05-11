@@ -537,11 +537,12 @@ def cube_to_mub(H):
 def cube_to_mub_simplified(H):
     A = np.eye(6, dtype=np.complex128)
     B = H[:, :, 0]
-    Q = np.array([vector_to_projection(B[:, i]) for i in range(6)])
     C = np.zeros((6, 6), dtype = np.complex128)
     for j in range(6):
         for k in range(6):
-            C[k, j] = np.conj(H[k, :, j]) @ Q[:, k, 0]
+            Qk = B[k, :] * B[0, :]
+            C[k, j] = np.conj(H[k, :, j]) @ Qk
+            # np.abs(C[:, j]) is a constant vector.
         C[:, j] /= np.abs(C[:, j]) * 6 ** 0.5
     return np.array([A, B, C])
 
