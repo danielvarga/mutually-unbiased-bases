@@ -26,7 +26,7 @@ c = hadamard_cube(a)
 verify_cube_properties(c)
 
 
-a_prime = cube_to_mub(c)
+a_prime = cube_to_mub_simplified(c)
 verify_mub(a_prime)
 rank1_b1 = a_prime[1] / a[1]
 rank1_b2 = a_prime[2] / a[2]

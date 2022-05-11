@@ -513,26 +513,36 @@ def projection_to_vector(P):
     u, s, vh = np.linalg.svd(P)
     return u[:, 0]
 
+
 def vector_to_projection(v):
-    w = v[np.newaxis]
-    P = w.T @ w
-    return P
+    return v[:, None] @ v[None, :]
+
 
 def cube_to_mub(H):
     A = np.eye(6, dtype = np.complex128)
-    P = [np.zeros((6,6), dtype = np.complex128) for i in range(6)]
-    for i, p in enumerate(P):
-        p[i, i] = 1
     B = H[:, :, 0]
-    Q = [vector_to_projection(B[:, i]) for i in range(6)]
+    Q = np.array([vector_to_projection(B[:, i]) for i in range(6)])
+    Q = np.transpose(Q, [1, 0, 2])
     R = []
     for j in range(6):
-        R.append(np.zeros((6, 6), dtype = np.complex128))
+        r = np.zeros((6, 6), dtype = np.complex128)
         for k in range(6):
-            for l in range(6):
-                R[-1] += np.conj(H[k, l, j]) * P[k] @ Q[l]
+            r[k] = np.conj(H[k, :, j]) @ Q[k, :, :]
+        R.append(r)
     r_candidate = [projection_to_vector(r) for r in R]
     C = np.array(r_candidate).T
+    return np.array([A, B, C])
+
+
+def cube_to_mub_simplified(H):
+    A = np.eye(6, dtype=np.complex128)
+    B = H[:, :, 0]
+    Q = np.array([vector_to_projection(B[:, i]) for i in range(6)])
+    C = np.zeros((6, 6), dtype = np.complex128)
+    for j in range(6):
+        for k in range(6):
+            C[k, j] = np.conj(H[k, :, j]) @ Q[:, k, 0]
+        C[:, j] /= np.abs(C[:, j]) * 6 ** 0.5
     return np.array([A, B, C])
 
 
