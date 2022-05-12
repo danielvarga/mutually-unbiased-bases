@@ -16,17 +16,20 @@ np.set_printoptions(precision=5, suppress=True, linewidth=160)
 filename = sys.argv[1]
 a = np.load(filename)
 
-a = np.stack([np.eye(6, dtype=np.complex128), a[0], a[1]])
+print("messin' with the basis order")
+# a = np.stack([np.eye(6, dtype=np.complex128), a[0], a[1]])
+a = np.stack([a[0], a[1], np.eye(6, dtype=np.complex128)])
 
 for i in range(1, len(a)):
-    verify_hadamard(a[i])
+    pass # verify_hadamard(a[i])
 
 verify_mub(a)
 c = hadamard_cube(a)
 verify_cube_properties(c)
 
 
-a_prime = cube_to_mub_simplified(c)
+a_prime = cube_to_mub(c)
+# a_prime = cube_to_mub_simplified(c)
 verify_mub(a_prime)
 rank1_b1 = a_prime[1] / a[1]
 rank1_b2 = a_prime[2] / a[2]
