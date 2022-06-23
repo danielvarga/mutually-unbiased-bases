@@ -1,7 +1,7 @@
 import numpy as np
 from pulp import *
 
-n = 5
+n = 4
 N = 8
 
 x = np.arange(-N+1, N, dtype=int)
@@ -29,22 +29,23 @@ lp += zero == 1
 # parquet constraints.
 # let e_i be the ith basis vector.
 # for each variable x = x_1 >= ... >= x_n, we set y=x-e_1, and constrain
-# v(y+e_1) + ... + v(y+e_n) = 0
+# v(y+e_1) + ... + v(y+e_n) = 1
 for var in variables:
-    centre = np.array(var)
-    centre[0] -= 1
-    available = True
-    parq_vars = []
-    for i in range(n):
-        pos = centre.copy()
-        pos[i] += 1
-        var_i = tuple(sorted(pos, reverse=True))
-        if var_i not in variables:
-            available = False
-            break
-        parq_vars.append(vardict[var_i])
-    if available:
-        lp += sum(parq_vars) == 1
+    for coord in range(n):
+        centre = np.array(var)
+        centre[coord] -= 1
+        available = True
+        parq_vars = []
+        for i in range(n):
+            pos = centre.copy()
+            pos[i] += 1
+            var_i = tuple(sorted(pos, reverse=True))
+            if var_i not in variables:
+                available = False
+                break
+            parq_vars.append(vardict[var_i])
+        if available:
+            lp += sum(parq_vars) == 1
 
 
 # for example, build(1, 1, -1, -1) is the LP var corresponding to the [1, 1, 0, ..., 0, -1, -1] vector.
@@ -54,7 +55,7 @@ def build(*v):
 # we'd like to know the minimum possible value of the following variables
 # or sum of variables:
 target = build(1, 1, -1, -1)
-target = build(n, -n)
+# target = build(n, -n)
 lp += target
 
 target1 = build(2, -1, -1)
