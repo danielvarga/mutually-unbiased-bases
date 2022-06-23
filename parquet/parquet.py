@@ -19,10 +19,10 @@ b = np.unique(b, axis=0)
 variables = set(tuple(var) for var in b)
 
 lp = LpProblem("parquet", LpMinimize)
-# for each element of variable, we create an LP variable bound between 0 and 1:
+# for each element of variable, we create an LP variable bounded between 0 and 1:
 vardict = LpVariable.dicts("x", list(variables), lowBound=0, upBound=1)
 
-# we set to one the all-0 variable to 1:
+# we set the all-0 variable to 1:
 zero = vardict[tuple([0]*n)]
 lp += zero == 1
 
@@ -47,6 +47,7 @@ for var in variables:
         lp += sum(parq_vars) == 1
 
 
+# for example, build(1, 1, -1, -1) is the LP var corresponding to the [1, 1, 0, ..., 0, -1, -1] vector.
 def build(*v):
     return vardict[tuple(sorted(list(v) + [0] * (n - len(v)), reverse=True))]
 
