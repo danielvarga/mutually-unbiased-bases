@@ -528,8 +528,7 @@ def cube_to_mub(H):
         for k in range(6):
             r[k, :] = np.conj(H[k, :, j]) @ Q[:, k, :]
         R.append(r)
-        print(f"r{j}")
-        print(r)
+
     r_candidate = [projection_to_vector(r) for r in R]
     C = np.array(r_candidate).T
     return np.array([A, B, C])
