@@ -76,13 +76,51 @@ for f in (F1, F2, F3, G1, G2, G3, F, P):
     print(f(*args))
 
 
+def verify_hadamard(b, atol=1e-4):
+    n = len(b)
+    assert np.allclose(np.abs(b) ** 2, 1 / n, atol=atol)
+    prod = np.conjugate(b.T) @ b
+    assert np.allclose(prod, np.eye(n), atol=atol)
+
+
+def random_phases(shape):
+    return np.exp(2 * np.pi * 1j * np.random.uniform(size=shape))
+
+
 def random_hadamard():
     ones = np.ones((3, 3), dtype=np.complex128)
     A = ones.copy()
-    a, b, c, d = random_phases(4)
+    a, b, c, d = random_phases((4, ))
     A[1,1], A[1,2], A[2,1], A[2,2] = a, b, c, d
 
-    D = -C.Transpose[1/A].Transpose[Conjugate[Inverse[B]]]
+    '''
+solsB=#[[1,2]]&/@NSolve[(P[a,b,c,d,e]//Simplify)==0,e,100];
+SOLB=Select[Subsets[solsB,{3}],Abs[N[1+a+b+(Plus@@#),100]]<0.001&];
+SOLB[[1,1]];
+{e1,e2,e3}=SOLB[[1]];
+solsC=#[[1,2]]&/@NSolve[(P[a,c,b,d,e]//Simplify)==0,e,100];
+SOLC=Select[Subsets[solsC,{3}],Abs[N[1+a+c+(Plus@@#),100]]<0.001&];
+SOLC[[1,1]];
+{g1,g2,g3}=SOLC[[1]];
+{f1,f2,f3}=F[a,b,c,d,#]&/@{e1,e2,e3};
+{h1,h2,h3}=F[a,c,b,d,#]&/@{g1,g2,g3};
+    '''
+
+    # placeholder until the above is ported:
+    e = random_phases((3, ))
+    f = random_phases((3, ))
+    g = random_phases((3, ))
+    h = random_phases((3, ))
+
+    B = ones.copy()
+    B[1, :] = e
+    B[2, :] = f
+
+    C = ones.copy()
+    C[:, 1] = g
+    C[:, 2] = h
+
+    D = -C @ np.transpose(1/A) @ np.transpose(np.conjugate(np.linalg.inv(B)))
 
     H = np.zeros((6, 6), dtype=np.complex128)
     H[:3, :3] = A
