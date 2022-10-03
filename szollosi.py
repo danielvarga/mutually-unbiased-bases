@@ -24,27 +24,27 @@ SOLC[[1,1]];
 {g1,g2,g3}=SOLC[[1]];
 {f1,f2,f3}=F[a,b,c,d,#]&/@{e1,e2,e3};
 {h1,h2,h3}=F[a,c,b,d,#]&/@{g1,g2,g3};
-A=(1    1       1
-1       a       b
-1       c       d
+A=(1    1    1
+   1    a    b
+   1    c    d
 );
-B=(1  1       1
-e1      e2      e3
-f1      f2      f3
+B=(1    1    1
+   e1   e2   e3
+   f1   f2   f3
 );
-cc=(1 g1      h1
-1       g2      h2
-1       g3      h3
+C=(1   g1   h1
+    1   g2   h2
+    1   g3   h3
 );
-dd=-cc.Transpose[1/A].Transpose[Conjugate[Inverse[B]]];
+D=-cc.Transpose[1/A].Transpose[Conjugate[Inverse[B]]];
 
-H=N[(1  1       1       1       1       1
-1       a       b       e1      e2      e3
-1       c       d       f1      f2      f3
-1       g1      h1      dd[[1,1]]       dd[[1,2]]       dd[[1,3]]
-1       g2      h2      dd[[2,1]]       dd[[2,2]]       dd[[2,3]]
-1       g3      h3      dd[[3,1]]       dd[[3,2]]       dd[[3,3]]
-
+H=N[(
+1       1       1       1              1              1
+1       a       b       e1             e2             e3
+1       c       d       f1             f2             f3
+1       g1      h1      D[[1,1]]       D[[1,2]]       D[[1,3]]
+1       g2      h2      D[[2,1]]       D[[2,2]]       D[[2,3]]
+1       g3      h3      D[[3,1]]       D[[3,2]]       D[[3,3]]
 )];
 If[Plus@@Flatten[Abs[Abs[H]-1]]<0.00001,
 If[Plus@@Flatten[Abs[(H.Transpose[Conjugate[H]]-6IdentityMatrix[6])]]<0.0001,
@@ -52,22 +52,24 @@ Hads=Join[Hads,{H}]]]
 ]
 '''
 
+# these 8 functions were automatically converted by
+# cat szollosi.mathematica | tail -n +2 | head -8 | tr ' ' '*' | sed "s/\([2-9]\)\([a-e]\)/\1*\2/g" | tr '[]' '()' | sed "s/\()\)\([FG]\)/\1*\2/g" | sed "s/\^/**/g" | sed "s/)(/)*(/g" | sed "s/^/def /" | sed "s/=/@    return /g" | tr '@' '\n' | tr -d '_;' | sed "s/\(\*[2-9]\)(/\1*(/g"
 def F1(a,b,c,d,e):
     return a**2*b*c*d*e+a*b**2*c*d*e+b*c**2*d*e+b**2*c**2*d*e+a*c*d**2*e+a**2*c*d**2*e-a*c*d*e**2-b*c*d*e**2-a*c**2*d*e**2-a*b*c**2*d*e**2-b*c*d**2*e**2-a*b*c*d**2*e**2
 def F2(a,b,c,d,e):
-    return (-a*b**2*c-a*b**2*c**2-a**2*b*d-a*b*c**2*d-a**2*b*d**2-a*b*c*d**2+a**2*b*c*e-b**2*c*e+b*c**2*e-a*b**2*c**2*e-a**2*d*e+a*b**2*d*e-a*c**2*d*e+b**2*c**2*d*e+a*d**2*e-a**2*b*d**2*e+a**2*c*d**2*e-b*c*d**2*e+a*b*c*e**2+b*c**2*e**2+a*b*d*e**2+b*c**2*d*e**2+a*d**2*e**2+a*c*d**2*e**2);
+    return (-a*b**2*c-a*b**2*c**2-a**2*b*d-a*b*c**2*d-a**2*b*d**2-a*b*c*d**2+a**2*b*c*e-b**2*c*e+b*c**2*e-a*b**2*c**2*e-a**2*d*e+a*b**2*d*e-a*c**2*d*e+b**2*c**2*d*e+a*d**2*e-a**2*b*d**2*e+a**2*c*d**2*e-b*c*d**2*e+a*b*c*e**2+b*c**2*e**2+a*b*d*e**2+b*c**2*d*e**2+a*d**2*e**2+a*c*d**2*e**2)
 def F3(a,b,c,d,e):
-    return (a*b*c+a**2*b*c+a*b*d+a*b**2*d+a**2*b*c*d+a*b**2*c*d-b**2*c*e-a*b**2*c*e-a**2*d*e-a**2*b*d*e-a*c*d*e-b*c*d*e);
+    return (a*b*c+a**2*b*c+a*b*d+a*b**2*d+a**2*b*c*d+a*b**2*c*d-b**2*c*e-a*b**2*c*e-a**2*d*e-a**2*b*d*e-a*c*d*e-b*c*d*e)
 def G1(a,b,c,d,e):
-    return 2*a*b*c*d*e+a**2*b*c*d*e+a*b**2*c*d*e+b*c**2*d*e+2*a*b*c**2*d*e+b**2*c**2*d*e+a*c*d**2*e+a**2*c*d**2*e+2*a*b*c*d**2*e+2*a*b*c*d*e**2+2*b*c**2*d*e**2+2*a*c*d**2*e**2;
+    return 2*a*b*c*d*e+a**2*b*c*d*e+a*b**2*c*d*e+b*c**2*d*e+2*a*b*c**2*d*e+b**2*c**2*d*e+a*c*d**2*e+a**2*c*d**2*e+2*a*b*c*d**2*e+2*a*b*c*d*e**2+2*b*c**2*d*e**2+2*a*c*d**2*e**2
 def G2(a,b,c,d,e):
-    return (2*a*b*c*d+2*a**2*b*c*d+2*a*b**2*c*d+2*a*b*c*e+a**2*b*c*e+2*a*b**2*c*e+b*c**2*e+2*a*b*c**2*e+2*b**2*c**2*e+2*a*b*d*e+2*a**2*b*d*e+a*b**2*d*e+2*a*c*d*e+2*a**2*c*d*e+2*b*c*d*e+12*a*b*c*d*e+2*a**2*b*c*d*e+2*b**2*c*d*e+2*a*b**2*c*d*e+2*b*c**2*d*e+2*a*b*c**2*d*e+b**2*c**2*d*e+a*d**2*e+2*a**2*d**2*e+2*a*b*d**2*e+2*a*c*d**2*e+a**2*c*d**2*e+2*a*b*c*d**2*e+a*b*c*e**2+b*c**2*e**2+a*b*d*e**2+2*a*c*d*e**2+2*b*c*d*e**2+2*a*b*c*d*e**2+b*c**2*d*e**2+a*d**2*e**2+a*c*d**2*e**2);
+    return (2*a*b*c*d+2*a**2*b*c*d+2*a*b**2*c*d+2*a*b*c*e+a**2*b*c*e+2*a*b**2*c*e+b*c**2*e+2*a*b*c**2*e+2*b**2*c**2*e+2*a*b*d*e+2*a**2*b*d*e+a*b**2*d*e+2*a*c*d*e+2*a**2*c*d*e+2*b*c*d*e+12*a*b*c*d*e+2*a**2*b*c*d*e+2*b**2*c*d*e+2*a*b**2*c*d*e+2*b*c**2*d*e+2*a*b*c**2*d*e+b**2*c**2*d*e+a*d**2*e+2*a**2*d**2*e+2*a*b*d**2*e+2*a*c*d**2*e+a**2*c*d**2*e+2*a*b*c*d**2*e+a*b*c*e**2+b*c**2*e**2+a*b*d*e**2+2*a*c*d*e**2+2*b*c*d*e**2+2*a*b*c*d*e**2+b*c**2*d*e**2+a*d**2*e**2+a*c*d**2*e**2)
 def G3(a,b,c,d,e):
-    return (a*b*c+a**2*b*c+2*a*b**2*c+a*b*d+2*a**2*b*d+a*b**2*d+2*a*b*c*d+a**2*b*c*d+a*b**2*c*d+2*a*b*c*e+2*a*b*d*e+2*a*b*c*d*e);
+    return (a*b*c+a**2*b*c+2*a*b**2*c+a*b*d+2*a**2*b*d+a*b**2*d+2*a*b*c*d+a**2*b*c*d+a*b**2*c*d+2*a*b*c*e+2*a*b*d*e+2*a*b*c*d*e)
 def F(a,b,c,d,e):
-    return -(F3(a,b,c,d,e)*G1(a,b,c,d,e)-F1(a,b,c,d,e)*G3(a,b,c,d,e))/(F3(a,b,c,d,e)*G2(a,b,c,d,e)-F2(a,b,c,d,e)*G3(a,b,c,d,e));
+    return -(F3(a,b,c,d,e)*G1(a,b,c,d,e)-F1(a,b,c,d,e)*G3(a,b,c,d,e))/(F3(a,b,c,d,e)*G2(a,b,c,d,e)-F2(a,b,c,d,e)*G3(a,b,c,d,e))
 def P(a,b,c,d,e):
-    return a**4*b**4*c**3*d**3*e**3 * ((F3(a,b,c,d,e)*G1(a,b,c,d,e)-F1(a,b,c,d,e)*G3(a,b,c,d,e))*(F3(1/a,1/b,1/c,1/d,1/e)*G1(1/a,1/b,1/c,1/d,1/e)-F1(1/a,1/b,1/c,1/d,1/e)*G3(1/a,1/b,1/c,1/d,1/e))-(F3(a,b,c,d,e)*G2(a,b,c,d,e)-F2(a,b,c,d,e)*G3(a,b,c,d,e))*(F3(1/a,1/b,1/c,1/d,1/e)*G2(1/a,1/b,1/c,1/d,1/e)-F2(1/a,1/b,1/c,1/d,1/e)*G3(1/a,1/b,1/c,1/d,1/e)));
+    return a**4*b**4*c**3*d**3*e**3*((F3(a,b,c,d,e)*G1(a,b,c,d,e)-F1(a,b,c,d,e)*G3(a,b,c,d,e))*(F3(1/a,1/b,1/c,1/d,1/e)*G1(1/a,1/b,1/c,1/d,1/e)-F1(1/a,1/b,1/c,1/d,1/e)*G3(1/a,1/b,1/c,1/d,1/e))-(F3(a,b,c,d,e)*G2(a,b,c,d,e)-F2(a,b,c,d,e)*G3(a,b,c,d,e))*(F3(1/a,1/b,1/c,1/d,1/e)*G2(1/a,1/b,1/c,1/d,1/e)-F2(1/a,1/b,1/c,1/d,1/e)*G3(1/a,1/b,1/c,1/d,1/e)))
 
 args = (1,2,3,4,5)
 for f in (F1, F2, F3, G1, G2, G3, F, P):
@@ -75,6 +77,19 @@ for f in (F1, F2, F3, G1, G2, G3, F, P):
 
 
 def random_hadamard():
-    pass
+    ones = np.ones((3, 3), dtype=np.complex128)
+    A = ones.copy()
+    a, b, c, d = random_phases(4)
+    A[1,1], A[1,2], A[2,1], A[2,2] = a, b, c, d
+
+    D = -C.Transpose[1/A].Transpose[Conjugate[Inverse[B]]]
+
+    H = np.zeros((6, 6), dtype=np.complex128)
+    H[:3, :3] = A
+    H[:3, 3:] = B
+    H[3:, :3] = C
+    H[3:, 3:] = D
+    return H
 
 
+verify_hadamard(random_hadamard())
