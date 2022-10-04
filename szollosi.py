@@ -231,14 +231,16 @@ SOLC[[1,1]];
     return H
 
 
-for seed in range(100):
-    print("====")
+Hs = []
+for seed in range(1000):
     H = random_hadamard(seed=seed)
     np.set_printoptions(precision=6, suppress=False, linewidth=100000)
     if H is not None:
         try:
             verify_hadamard(H)
-            print(H)
+            Hs.append(H)
         except:
-            print("nope", seed)
-
+            pass
+    if seed % 10 == 0:
+        print(len(Hs), "/", seed)
+        np.save("generic_hadamards.npy", np.array(Hs))
