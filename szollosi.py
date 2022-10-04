@@ -52,6 +52,19 @@ Hads=Join[Hads,{H}]]]
 ]
 '''
 
+
+def verify_hadamard(b, atol=1e-4):
+    n = len(b)
+    assert np.allclose(np.abs(b) ** 2, 1 / n, atol=atol)
+    prod = np.conjugate(b.T) @ b
+    assert np.allclose(prod, np.eye(n), atol=atol)
+
+
+def random_phases(shape):
+    return np.exp(2 * np.pi * 1j * np.random.uniform(size=shape))
+
+
+
 # these 8 functions were automatically converted by
 # cat szollosi.mathematica | tail -n +2 | head -8 | tr ' ' '*' | sed "s/\([2-9]\)\([a-e]\)/\1*\2/g" | tr '[]' '()' | sed "s/\()\)\([FG]\)/\1*\2/g" | sed "s/\^/**/g" | sed "s/)(/)*(/g" | sed "s/^/def /" | sed "s/=/@    return /g" | tr '@' '\n' | tr -d '_;' | sed "s/\(\*[2-9]\)(/\1*(/g"
 def F1(a,b,c,d,e):
@@ -71,27 +84,100 @@ def F(a,b,c,d,e):
 def P(a,b,c,d,e):
     return a**4*b**4*c**3*d**3*e**3*((F3(a,b,c,d,e)*G1(a,b,c,d,e)-F1(a,b,c,d,e)*G3(a,b,c,d,e))*(F3(1/a,1/b,1/c,1/d,1/e)*G1(1/a,1/b,1/c,1/d,1/e)-F1(1/a,1/b,1/c,1/d,1/e)*G3(1/a,1/b,1/c,1/d,1/e))-(F3(a,b,c,d,e)*G2(a,b,c,d,e)-F2(a,b,c,d,e)*G3(a,b,c,d,e))*(F3(1/a,1/b,1/c,1/d,1/e)*G2(1/a,1/b,1/c,1/d,1/e)-F2(1/a,1/b,1/c,1/d,1/e)*G3(1/a,1/b,1/c,1/d,1/e)))
 
-args = (1,2,3,4,5)
-for f in (F1, F2, F3, G1, G2, G3, F, P):
-    print(f(*args))
+
+def test_sympy():
+    import sympy
+    a, b, c, d, e = sympy.symbols('a b c d e')
+    for f in (F1, F2, F3, G1, G2, G3, F, P):
+        print("======")
+        print(f(a,b,c,d,e))
 
 
-def verify_hadamard(b, atol=1e-4):
-    n = len(b)
-    assert np.allclose(np.abs(b) ** 2, 1 / n, atol=atol)
-    prod = np.conjugate(b.T) @ b
-    assert np.allclose(prod, np.eye(n), atol=atol)
+def solve_p_for_e(abcd):
+    import sympy
+    a, b, c, d = abcd
+    e = sympy.symbols('e')
+    e_poly = sympy.expand(P(a, b, c, d, e))
+    e_poly = sympy.Poly(e_poly, e)
+    coeffs = e_poly.all_coeffs()
+    coeffs = np.array([ np.complex128(coeff) for coeff in coeffs ])
+    solutions = np.polynomial.polynomial.polyroots(coeffs)
+    return solutions
 
 
-def random_phases(shape):
-    return np.exp(2 * np.pi * 1j * np.random.uniform(size=shape))
+def test_solve():
+    import matplotlib.pyplot as plt
+    r = 4
+    n = 100
+    x = np.linspace(-r, r, n)
+    y = np.linspace(-r, r, n)
+    xv, yv = np.meshgrid(x, y)
+    e = xv + 1j * yv
+    for i in range(10):
+        np.random.seed(i)
+        abcd = random_phases((4, ))
+        a, b, c, d = abcd
+        p = P(a, b, c, d, e)
+        plt.imshow(-np.log(np.abs(p))[::-1, :])
+        solutions = solve_p_for_e(abcd)
+        solutions_proj = (solutions + r + r * 1j) / 2 / r * (n - 1)
+        plt.scatter(solutions_proj.real, solutions_proj.imag)
+        plt.show()
+    abcd = random_phases((4, ))
+    print(len(solutions), solutions)
+
+# test_solve() ; exit()
 
 
-def random_hadamard():
+def heatmap_e():
+    import matplotlib.pyplot as plt
+    r = 4
+    n = 100
+    x = np.linspace(-r, r, n)
+    y = np.linspace(-r, r, n)
+    xv, yv = np.meshgrid(x, y)
+    e = xv + 1j * yv
+    for i in range(20):
+        np.random.seed(i)
+        a, b, c, d = random_phases((4, ))
+        p = P(a, b, c, d, e)
+        plt.imshow(-np.log(np.abs(p)))
+        plt.show()
+
+
+# heatmap_e() ; exit()
+
+
+def random_hadamard(seed=None):
+    np.random.seed(seed)
     ones = np.ones((3, 3), dtype=np.complex128)
     A = ones.copy()
-    a, b, c, d = random_phases((4, ))
+    abcd = random_phases((4, ))
+
+    abcd = np.exp(np.linspace(0.2, 0.8, 4) * np.pi * 2j)
+
+    a, b, c, d = abcd
+    acbd = a, c, b, d
     A[1,1], A[1,2], A[2,1], A[2,2] = a, b, c, d
+
+    solutions_abcd = solve_p_for_e(abcd)
+    print(solutions_abcd)
+    import matplotlib.pyplot as plt
+    plt.scatter(solutions_abcd.real, solutions_abcd.imag)
+    plt.show()
+    solutions_acbd = solve_p_for_e(acbd)
+
+    import itertools
+    for triple in itertools.combinations(solutions_abcd, 3):
+        sb = 1 + a + b + sum(triple)
+        if np.abs(sb) < 1e-3:
+            print(sb, triple)
+    for triple in itertools.combinations(solutions_acbd, 3):
+        sc = 1 + a + c + sum(triple)
+        if np.abs(sc) < 1e-3:
+            print(sc, triple)
+
+    return
 
     '''
 solsB=#[[1,2]]&/@NSolve[(P[a,b,c,d,e]//Simplify)==0,e,100];
@@ -130,4 +216,5 @@ SOLC[[1,1]];
     return H
 
 
-verify_hadamard(random_hadamard())
+
+random_hadamard(seed=3)
