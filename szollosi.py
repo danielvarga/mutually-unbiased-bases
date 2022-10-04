@@ -55,9 +55,9 @@ Hads=Join[Hads,{H}]]]
 
 def verify_hadamard(b, atol=1e-4):
     n = len(b)
-    assert np.allclose(np.abs(b) ** 2, 1 / n, atol=atol)
+    assert np.allclose(np.abs(b) ** 2, 1, atol=atol)
     prod = np.conjugate(b.T) @ b
-    assert np.allclose(prod, np.eye(n), atol=atol)
+    assert np.allclose(prod, n * np.eye(n), atol=atol)
 
 
 def random_phases(shape):
@@ -154,30 +154,45 @@ def random_hadamard(seed=None):
     A = ones.copy()
     abcd = random_phases((4, ))
 
-    abcd = np.exp(np.linspace(0.2, 0.8, 4) * np.pi * 2j)
+    # abcd = np.exp(np.linspace(0.2, 0.8, 4) * np.pi * 2j)
+    # abcdi = np.array([119, 515, 636, 943]) / 1000 ; abcd = np.exp(abcdi * np.pi * 2j)
 
     a, b, c, d = abcd
     acbd = a, c, b, d
     A[1,1], A[1,2], A[2,1], A[2,2] = a, b, c, d
 
-    solutions_abcd = solve_p_for_e(abcd)
+    solutions_abcd = np.conjugate(solve_p_for_e(abcd))
+    solutions_acbd = np.conjugate(solve_p_for_e(acbd))
+
+    '''
+    print("abcd", solutions_abcd)
+    print("acbd", solutions_acbd)
+    '''
+
+    '''
     print(solutions_abcd)
     import matplotlib.pyplot as plt
     plt.scatter(solutions_abcd.real, solutions_abcd.imag)
     plt.show()
-    solutions_acbd = solve_p_for_e(acbd)
+    '''
 
     import itertools
-    for triple in itertools.combinations(solutions_abcd, 3):
-        sb = 1 + a + b + sum(triple)
+    for triple_abcd in itertools.combinations(solutions_abcd, 3):
+        sb = 1 + a + b + sum(triple_abcd)
         if np.abs(sb) < 1e-3:
-            print(sb, triple)
-    for triple in itertools.combinations(solutions_acbd, 3):
-        sc = 1 + a + c + sum(triple)
-        if np.abs(sc) < 1e-3:
-            print(sc, triple)
+            break
+        else:
+            triple_abcd = None
 
-    return
+    for triple_acbd in itertools.combinations(solutions_acbd, 3):
+        sc = 1 + a + c + sum(triple_acbd)
+        if np.abs(sc) < 1e-3:
+            break
+        else:
+            triple_acbd = None
+
+    if triple_abcd is None or triple_acbd is None:
+        return None
 
     '''
 solsB=#[[1,2]]&/@NSolve[(P[a,b,c,d,e]//Simplify)==0,e,100];
@@ -192,11 +207,11 @@ SOLC[[1,1]];
 {h1,h2,h3}=F[a,c,b,d,#]&/@{g1,g2,g3};
     '''
 
-    # placeholder until the above is ported:
-    e = random_phases((3, ))
-    f = random_phases((3, ))
-    g = random_phases((3, ))
-    h = random_phases((3, ))
+    e = np.array(triple_abcd)
+    g = np.array(triple_acbd)
+
+    f = F(a, b, c, d, e)
+    h = F(a, c, b, d, g)
 
     B = ones.copy()
     B[1, :] = e
@@ -216,5 +231,14 @@ SOLC[[1,1]];
     return H
 
 
+for seed in range(100):
+    print("====")
+    H = random_hadamard(seed=seed)
+    np.set_printoptions(precision=6, suppress=False, linewidth=100000)
+    if H is not None:
+        try:
+            verify_hadamard(H)
+            print(H)
+        except:
+            print("nope", seed)
 
-random_hadamard(seed=3)
