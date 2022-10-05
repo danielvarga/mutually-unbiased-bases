@@ -16,9 +16,7 @@ np.set_printoptions(precision=5, suppress=True, linewidth=160)
 filename = sys.argv[1]
 a = np.load(filename)
 
-print("messin' with the basis order")
-# a = np.stack([np.eye(6, dtype=np.complex128), a[0], a[1]])
-a = np.stack([a[0], a[1], np.eye(6, dtype=np.complex128)])
+a = np.stack([np.eye(6, dtype=np.complex128), a[0], a[1]])
 
 for i in range(1, len(a)):
     pass # verify_hadamard(a[i])
@@ -31,11 +29,7 @@ verify_cube_properties(c)
 a_prime = cube_to_mub(c)
 # a_prime = cube_to_mub_simplified(c)
 verify_mub(a_prime)
-rank1_b1 = a_prime[1] / a[1]
-rank1_b2 = a_prime[2] / a[2]
-print(np.linalg.svd(rank1_b1)[1])
-print(np.linalg.svd(rank1_b2)[1])
-exit()
+
 
 # 00001
 # print(angler(c[:, :, 0][:, [0, 2, 5, 1, 4, 3]][[2, 3, 4, 0, 5, 1], :]))
@@ -46,11 +40,6 @@ exit()
 c = c[:, :, :][:, :, [0, 3, 5, 1, 4, 2]][:, [5, 1, 2, 3, 4, 1], :]
 
 sx = c[0, :, :]
-print(np.abs(sx))
-print(angler(sx))
-print(np.abs(trans(dag(sx), dag(sx))))
-exit()
-
 
 
 
@@ -265,6 +254,13 @@ a = standardize_triplet_order(a)
 a, x1y1, dl2, x2y2 = standardize_mub(a)
 x1, y1 = x1y1
 x2, y2 = x2y2
+szollosi = trans(a[1], a[2])
+
+assert filename.startswith("triplets/")
+output_filename = filename.replace("triplets/", "szollosis/")
+
+np.save(output_filename, szollosi)
+
 print("filename", filename, "x1", angler(x1), "y1", angler(y1),
     "x2", angler(x2), "y2", angler(y2), "Dl2", angler(np.diag(dl2)))
 exit()
