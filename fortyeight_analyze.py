@@ -16,9 +16,8 @@ print(x, y)
 
 
 for i, b in enumerate(a):
-    # print(i, get_canonizer(b))
-    # print(i, find_blocks(b, allow_transposal=True))
     transfer = trans(F.T, b.T)
     transfer = np.conjugate(F) @ b.T
     print(i, find_partitions(transfer, atol=1e-4))
     print(i, find_partitions(transfer.T, atol=1e-4))
+    print(i, get_canonizer(transfer))
