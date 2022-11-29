@@ -16,6 +16,9 @@ def random_phases(shape):
 
 x, y = random_phases((2, ))
 F_np = canonical_fourier(x, y)
+# F_np = tao() # this if you want Tao
+
+
 assert np.allclose(np.abs(F_np), np.ones_like(F_np))
 assert np.allclose(trans(F_np, F_np), 6 * np.eye(6))
 
@@ -62,3 +65,4 @@ for u in mat[:10]:
 
 
 np.save("fortyeight.npy", mat)
+# np.save("fortyeight_tao.npy", mat) # this if you want Tao
