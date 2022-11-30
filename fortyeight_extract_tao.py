@@ -51,7 +51,60 @@ n = len(indices)
 
 uniques = m[indices]
 
+np.set_printoptions(precision=9, suppress=True)
+
+
 np.save("fortyeight_tao_really.npy", uniques)
+
+angles = angler(uniques)
+
+# this is a particular, non-generalizing way of getting 0.5222:
+delta = 45 - angles[0, 1]
+print("delta =", delta)
+atol = 1e-4
+integers = np.isclose(angles, np.round(angles), atol=atol)
+left_rotateds = np.isclose(angles - delta, np.round(angles - delta), atol=atol)
+right_rotateds = np.isclose(angles + delta, np.round(angles + delta), atol=atol)
+# they cover all the cases:
+assert np.allclose(integers.astype(int) + left_rotateds.astype(int) + right_rotateds.astype(int), np.ones_like(integers.astype(int)))
+
+# TODO that's ugly
+def standardize(integers_row, left_rotateds_row, right_rotateds_row, angles_row):
+    angles = []
+    delta_coeffs = []
+    for i in range(6):
+        if integers_row[i] == 1:
+            angles.append(np.round(angles_row[i])) ; delta_coeffs.append(0)
+        elif left_rotateds_row[i] == 1:
+            angles.append(np.round(angles_row[i] - delta)) ; delta_coeffs.append(1)
+        elif right_rotateds_row[i] == 1:
+            angles.append(np.round(angles_row[i] + delta)) ; delta_coeffs.append(-1)
+        else:
+            assert False
+    return angles, delta_coeffs
+
+
+def pretty(angles, delta_coeffs):
+    pretty_dict = {-1: "-delta", 0: "", 1: "+delta"}
+    for i in range(len(angles)):
+        angle = angles[i]
+        assert np.isclose(angle / 15, np.round(angle / 15)), f"bad angle {angle}"
+        delta_coeff = delta_coeffs[i]
+        assert delta_coeff in (-1, 0, 1)
+        pretty = str(int(np.round(angles[i]))) + pretty_dict[delta_coeff]
+        pretty = pretty.strip()
+        print(pretty, end=", ")
+    print()
+
+for integers_row, left_rotateds_row, right_rotateds_row, angles_row in list(zip(integers.astype(int), left_rotateds.astype(int), right_rotateds.astype(int), angles)):
+    angles, delta_coeffs = standardize(integers_row, left_rotateds_row, right_rotateds_row, angles_row)
+    pretty(angles, delta_coeffs)
+
+
+exit()
+
+
+
 
 pairwise = uniques @ np.conjugate(uniques.T)
 print(pairwise.shape)
