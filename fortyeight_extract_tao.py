@@ -1,3 +1,11 @@
+# python fortyeight_extract_tao.py | sed "s/, $//" | sed "s/ 0\+d/ d/g" | sed "s/ 0-delta/ -delta/g"
+# delta = 44.477512185929605
+# 0, delta, 0, 120, 120, -120+delta
+# 0, 120+delta, 0, delta, delta, 120+delta
+# 0, 0, delta, -120+delta, 120, 120
+# 0, 0, -120, -120, delta, delta
+# ...etcetera, 90 rows
+
 from itertools import combinations
 
 import numpy as np
@@ -59,7 +67,7 @@ np.save("fortyeight_tao_really.npy", uniques)
 angles = angler(uniques)
 
 # this is a particular, non-generalizing way of getting 0.5222:
-delta = 45 - angles[0, 1]
+delta = angles[0, 1]
 print("delta =", delta)
 atol = 1e-4
 integers = np.isclose(angles, np.round(angles), atol=atol)
