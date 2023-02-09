@@ -47,7 +47,8 @@ def create_unitarity_constraints(m):
     for jj in range(col_num):
         for kk in range(jj, col_num):
             sp = scalar_product(m[:, jj], m[:, kk])
-            target = 1 if (jj == kk) else 0
+            # N because these are not unitary but sqrt(N) times unitary:
+            target = N if (jj == kk) else 0
             unitarity_constraints.append(sp - target)
     return unitarity_constraints
 
@@ -123,15 +124,19 @@ g = G(matrices[0], 3)
 print(g)
 
 def multi_subs(formula, real_variables, complex_values):
-    print("shapes", real_variables.shape, complex_values.shape)
     assert real_variables[..., 0].shape == complex_values.shape
     assert real_variables.shape[-1] == 2 # real and imag
     for variable_real_part, variable_imag_part, complex_value in zip(real_variables[..., 0].flatten(), real_variables[..., 1].flatten(), complex_values.flatten()):
-        formula = formula.subs(variable_real_part = complex_value.real)
-        formula = formula.subs(variable_imag_part = complex_value.imag)
+        formula = formula.subs(variable_real_part == complex_value.real)
+        formula = formula.subs(variable_imag_part == complex_value.imag)
     return formula
 
+all_constraints = unimodularity_constraints + unitarity_constraints + unbiasedness_constraints
 
-print(vars[0, 0, 0, :])
-print(mub[0, 0, 0])
-print(multi_subs(unimodularity_constraints[0], vars, mub))
+for constraint in all_constraints:
+    value = multi_subs(constraint, vars, mub)
+    print(constraint, value)
+
+
+print("G(m, 1)", multi_subs(G(matrices[0], 1), vars[0], mub[0]))
+print("G(m, 3)", multi_subs(G(matrices[0], 3), vars[0], mub[0]))
