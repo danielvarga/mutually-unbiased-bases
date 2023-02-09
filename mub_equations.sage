@@ -127,10 +127,11 @@ def multi_subs(formula, real_variables, complex_values):
     assert real_variables[..., 0].shape == complex_values.shape
     assert real_variables.shape[-1] == 2 # real and imag
     for variable_real_part, variable_imag_part, complex_value in zip(real_variables[..., 0].flatten(), real_variables[..., 1].flatten(), complex_values.flatten()):
-        print(variable_real_part, type(variable_real_part), complex_value, type(complex_value))
-        formula = formula.subs(variable_real_part, complex_value.real)
-        formula = formula.subs(variable_imag_part, complex_value.imag)
+        formula = formula.subs(variable_real_part = complex_value.real)
+        formula = formula.subs(variable_imag_part = complex_value.imag)
     return formula
 
 
+print(vars[0, 0, 0, :])
+print(mub[0, 0, 0])
 print(multi_subs(unimodularity_constraints[0], vars, mub))
