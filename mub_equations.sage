@@ -2,8 +2,12 @@ import numpy as np
 
 print("Hello!")
 
-
 N = 6
+
+
+mub = np.load("triplet_mub_018.npy")
+assert mub.shape == (2, N, N)
+mub *= 6 ** 0.5 # unimodular
 
 # H and G are (6, 6) complex, represented as (2 (H or G), 6, 6, 2 (real or imag))
 
@@ -110,7 +114,23 @@ def G(m, k):
 
 expand_all = np.vectorize(expand)
 
-g = G(matrices[0], 1)
-
+g = G(matrices[0], 3)
+# print("=====")
+# print(g)
 
 # and now let's plug in a concrete MUB to verify it up to numerical precision
+
+print(g)
+
+def multi_subs(formula, real_variables, complex_values):
+    print("shapes", real_variables.shape, complex_values.shape)
+    assert real_variables[..., 0].shape == complex_values.shape
+    assert real_variables.shape[-1] == 2 # real and imag
+    for variable_real_part, variable_imag_part, complex_value in zip(real_variables[..., 0].flatten(), real_variables[..., 1].flatten(), complex_values.flatten()):
+        print(variable_real_part, type(variable_real_part), complex_value, type(complex_value))
+        formula = formula.subs(variable_real_part, complex_value.real)
+        formula = formula.subs(variable_imag_part, complex_value.imag)
+    return formula
+
+
+print(multi_subs(unimodularity_constraints[0], vars, mub))
