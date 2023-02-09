@@ -9,8 +9,8 @@ mub = np.load("triplet_mub_018.npy")
 assert mub.shape == (2, N, N)
 mub *= 6 ** 0.5 # unimodular
 
-# H and G are (6, 6) complex, represented as (2 (H or G), 6, 6, 2 (real or imag))
 
+# H and G are (6, 6) complex, represented as (2 (H or G), 6, 6, 2 (real or imag))
 
 vars = np.zeros((2, N, N, 2), dtype=np.object)
 matrices = np.zeros((2, N, N), dtype=np.object)
@@ -115,13 +115,8 @@ def G(m, k):
 
 expand_all = np.vectorize(expand)
 
-g = G(matrices[0], 3)
-# print("=====")
-# print(g)
 
 # and now let's plug in a concrete MUB to verify it up to numerical precision
-
-print(g)
 
 def multi_subs(formula, real_variables, complex_values):
     assert real_variables[..., 0].shape == complex_values.shape
@@ -138,6 +133,8 @@ for constraint in all_constraints:
     print(constraint, value)
 
 
-print("G(m, 1)", multi_subs(G(matrices[0], 1), vars[0], mub[0]))
-print("G(m, 3)", multi_subs(G(matrices[0], 3), vars[0], mub[0]))
-print("G(m^T, 3)", multi_subs(G(matrices[0], 3), vars[0], mub[0].T))
+for i in (0, 1):
+    print(f"G(M_{i+1}, 1)",   multi_subs(G(matrices[i], 1), vars[i], mub[i]))
+    print(f"G(M_{i+1}^T, 1)", multi_subs(G(matrices[i], 1), vars[i], mub[i].T))
+    print(f"G(M_{i+1}, 3)",   multi_subs(G(matrices[i], 3), vars[i], mub[i]))
+    print(f"G(M_{i+1}^T, 3)", multi_subs(G(matrices[i], 3), vars[i], mub[i].T))
