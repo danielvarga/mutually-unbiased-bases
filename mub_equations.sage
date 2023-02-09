@@ -140,3 +140,4 @@ for constraint in all_constraints:
 
 print("G(m, 1)", multi_subs(G(matrices[0], 1), vars[0], mub[0]))
 print("G(m, 3)", multi_subs(G(matrices[0], 3), vars[0], mub[0]))
+print("G(m^T, 3)", multi_subs(G(matrices[0], 3), vars[0], mub[0].T))
