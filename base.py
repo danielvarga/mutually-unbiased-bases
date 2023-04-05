@@ -460,20 +460,21 @@ def verify_phase_equivalence_overkill(b1, b2, atol=1e-4):
 
 
 def verify_cube_properties(c):
-    for i in range(6):
+    n = c.shape[0]
+    for i in range(n):
         # print("verifying 2D slices", i)
         verify_hadamard(c[i, :, :])
         verify_hadamard(c[:, i, :])
         verify_hadamard(c[:, :, i])
 
-    for i in range(6):
-        for j in range(6):
+    for i in range(n):
+        for j in range(n):
             # print("verifying 1D slices", i, j)
             verify_sum(c[i, j, :])
             verify_sum(c[:, i, j])
             verify_sum(c[j, :, i])
 
-    for i in range(6):
+    for i in range(n):
         # print("verifying equivalence of parallel slices", i)
         b1 = c[0, :, :]
         b2 = c[i, :, :]
@@ -554,7 +555,7 @@ def angler(x):
 
 def visualize_clusters(c, group_conjugates=True):
     n = 6
-    N = 100000
+    N = 10000
     bins = (N * np.angle(c)).astype(int)
     if group_conjugates:
         bins = np.abs(bins)
@@ -570,4 +571,20 @@ def visualize_clusters(c, group_conjugates=True):
     dists = bins[..., None] - vals[None, :]
     close = np.isclose(dists, 0)
     which = np.argmax(close, axis=-1)
+    print(len(np.unique(which.flatten())))
     return which
+
+
+def tao():
+    TIP = np.pi * 2j
+    w = np.exp(TIP / 3)
+    w2 = w ** 2
+    T = np.array([
+       [1, 1,  1,  1,  1,  1],
+       [1, 1,  w,  w,  w2, w2],
+       [1, w,  1,  w2, w2, w],
+       [1, w,  w2, 1,  w,  w2],
+       [1, w2, w2, w,  1,  w],
+       [1, w2, w,  w2, w,  1]])
+    return T
+

@@ -35,3 +35,12 @@ python search_cubes.py 1
 for ((i=5; i<1000; ++i)) ; do python search_cubes.py $i > couts.two_1d_slices/$i.cout 2> /dev/null ; done
 # -> cubes.two_1d_slices/cube_*.two_1d_slices_summing_to_1.npy
 #    turns out this is not really what we need
+
+
+mkdir straight_triplets
+mkdir straight_cubes
+mkdir canonized_cubes
+cat ./data/classify.couts.all | grep -v WTF | cut -f2 -d' ' | cut -f3 -d'_' | cut -f1 -d'.' | head -100 | while read code ; do echo $code ; python canonize_cube.py $code mat ; done
+cat ./data/classify.couts.all | grep -v WTF | head -100 > mub_sample_100.txt
+zip -r mub_sample_100.zip mub_sample_100.txt straight_triplets straight_cubes canonized_cubes
+scp -P 2820 mub_sample_100.zip hexagon.renyi.hu:./ai-shared/daniel/mub/
