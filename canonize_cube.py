@@ -286,7 +286,7 @@ def main():
     np.set_printoptions(precision=5, suppress=True, linewidth=160)
 
     code, ext = sys.argv[1:]
-    filename = f"triplets/triplet_mub_{code}.npy"
+    filename = f"triplets_all/triplet_mub_{code}.npy"
     a = np.load(filename)
 
     if len(a) == 2:

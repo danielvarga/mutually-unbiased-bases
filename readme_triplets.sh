@@ -44,3 +44,9 @@ cat ./data/classify.couts.all | grep -v WTF | cut -f2 -d' ' | cut -f3 -d'_' | cu
 cat ./data/classify.couts.all | grep -v WTF | head -100 > mub_sample_100.txt
 zip -r mub_sample_100.zip mub_sample_100.txt straight_triplets straight_cubes canonized_cubes
 scp -P 2820 mub_sample_100.zip hexagon.renyi.hu:./ai-shared/daniel/mub/
+mv mub_sample_100.zip mub_sample_100.txt straight_triplets straight_cubes canonized_cubes matlab-sample-100
+mkdir straight_triplets
+mkdir straight_cubes
+mkdir canonized_cubes
+cat ./data/classify.couts.all | grep -v WTF | cut -f2 -d' ' | cut -f3 -d'_' | cut -f1 -d'.' | while read code ; do echo $code ; python canonize_cube.py $code npy ; done
+# -> that takes 17 hours, let's see when i will stop it.
