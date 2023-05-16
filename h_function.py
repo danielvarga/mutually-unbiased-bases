@@ -8,7 +8,14 @@ import sys
 def raw_h(c, gamma, axis=0):
     assert c.shape == (6, 6, 6)
     assert gamma.shape == (6, )
-    powered = c ** gamma[:, None, None]
+    if axis == 0:
+        gamma_e = gamma[:, None, None]
+    elif axis == 1:
+        gamma_e = gamma[None, :, None]
+    elif axis == 2:
+        gamma_e = gamma[None, None, :]
+
+    powered = c ** gamma_e
     prods = np.prod(powered, axis=axis)
     return prods.sum()
 
@@ -57,14 +64,16 @@ b = - np.sort(- b, axis=-1)
 # keeping only the distinct ones:
 b = np.unique(b, axis=0)
 
+do_axis_summing = False
+prioritized_axis = 0
 for gamma in b:
-    '''
-    h = 0
-    for axis in range(3):
-        h_directional = perm_h(c, gamma, axis=axis, do_conv=True)
-        h += h_directional
-    '''
-    h = perm_h(c, gamma, axis=0, do_conv=True)
+    if do_axis_summing:
+        h = 0
+        for axis in range(3):
+            h_directional = perm_h(c, gamma, axis=axis, do_conv=True)
+            h += h_directional
+    else:
+        h = perm_h(c, gamma, axis=prioritized_axis, do_conv=True)
     assert np.isclose(h.imag, 0)
     if np.isclose(h.real, 0):
         # print(f"{gamma}, {h.real:.6f}")
