@@ -1,17 +1,14 @@
 import numpy as np
 
 
-n = 6
-N = 4
-
-
-
 TP = 2 * np.pi
 TIP = 2j * np.pi
 W = np.exp(TIP / 3)
 
+
 def angler(M):
     return np.around(np.angle(M) / 2 / np.pi * 360, 1)
+
 
 # Returns canonical fourier matrix as a complex Hadamard matrix.
 def canonical_fourier(x, y):
@@ -24,11 +21,13 @@ def canonical_fourier(x, y):
             ws[i, j] *= sixth ** ((i * j) % 6)
     return ws
 
+
 # a,b degrees, returns complex Fourier matrix
 def deg_fourier(a, b):
     x = np.exp(2 * np.pi * 1j * a / 360)
     y = np.exp(2 * np.pi * 1j * b / 360)
     return canonical_fourier(x, y)
+
 
 def random_fouriers(n):
     fouriers = []
@@ -45,29 +44,33 @@ def get_szollosis(n):
     return np.array(szollosi_collection)
 
 
-x = np.arange(-N+1, N, dtype=int)
-xs = [x] * n
-# nth direct power of [-N, N] interval:
-a = np.meshgrid(*xs)
-# array of all possible [-N, N] intervals:
-b = np.stack(a, axis=-1).reshape((-1, n))
-# ...that sum to 0:
-b = b[b.sum(axis=-1) == 0]
 
-print(b.shape)
+def build_grid_object(n, N, slice_sum):
+    x = np.arange(-N+1, N, dtype=int)
+    xs = [x] * n
+    # nth direct power of [-N, N] interval:
+    a = np.meshgrid(*xs)
+    # array of all possible [-N, N] intervals:
+    b = np.stack(a, axis=-1).reshape((-1, n))
+    # ...that sum to 0 or 1:
+    b = b[b.sum(axis=-1) == slice_sum]
 
-# each re-ordered descending:
-b_ordered = - np.sort(- b, axis=-1)
-# keeping only the distinct ones:
-b_unique, unique_inverse = np.unique(b_ordered, axis=0, return_inverse=True)
-# -> b_unique[unique_inverse] == b_ordered
+    print(b.shape)
 
-print(b_unique.shape)
+    # each re-ordered descending:
+    b_ordered = - np.sort(- b, axis=-1)
+    # keeping only the distinct ones:
+    b_unique, unique_inverse = np.unique(b_ordered, axis=0, return_inverse=True)
+    # -> b_unique[unique_inverse] == b_ordered
+
+    print(b_unique.shape)
+    return (b, b_unique, unique_inverse)
 
 
-# assumes global variables b, b_unique, unique_inverse
 # b is (num_total_gridpoints, n), Hs is (batchsize, n, n)
-def evaluate(Hs):
+def evaluate(Hs, grid_object, do_averaging):
+    (b, b_unique, unique_inverse) = grid_object
+
     num_total_gridpoints = len(b)
     num_unique_gridpoints = len(b_unique)
     assert b.shape == (num_total_gridpoints, n)
@@ -82,15 +85,8 @@ def evaluate(Hs):
     assert values.shape == (num_total_gridpoints, batchsize)
 
     values /= n ** 2
-    # print(list(zip(values, b))[:10])
-
-    '''
-    for value, bb in zip(values, b):
-        if np.isclose(value, 0):
-            print(value, bb)
-    '''
-
-    # print("G min/avg/max", values.min(), values.mean(), values.max())
+    if not do_averaging:
+        return b, values
 
     output_shape = (num_unique_gridpoints, batchsize)
     sums = np.zeros(output_shape)
@@ -102,17 +98,9 @@ def evaluate(Hs):
 
     averages = sums / counts
     assert averages.shape == output_shape
-    # print("Gbar min/avg/max", averages.min(), averages.mean(), averages.max())
-
     # -> averages[i] tells the Gbar value for gridpoint b_unique[i]
     return b_unique, averages
 
-
-'''
-MUB = np.load("../data/triplet_mub_57638.npy")
-H = MUB[0] * n ** 0.5
-assert np.allclose(np.abs(H[0]), 1)
-'''
 
 def mini33(H_orig, k):
     H = H_orig.copy()
@@ -126,8 +114,19 @@ def mini33(H_orig, k):
     return h
 
 
+
+n = 6
+N = 4
+slice_sum = 1
+do_averaging = True
+target_value = 1/6
+
+
+grid_object = build_grid_object(n=n, N=N, slice_sum=slice_sum)
+(b, b_unique, unique_inverse) = grid_object # but we don't use them below, only in evaluate().
+
 cubes = np.load("all_straight_cubes.npy")
-cube = cubes[0]
+cube = cubes[2]
 cube *= 6 ** 0.5
 
 '''
@@ -139,34 +138,11 @@ H = H[:, [3, 1, 4, 2, 0, 5]]
 H = H * 6 ** 0.5
 '''
 
-
 # for H in [H]:
 for H in (cube[0, :, :], cube[0, :, :].T, cube[:, 0, :], cube[:, 0, :].T, cube[:, :, 0], cube[:, :, 0].T):
-    b_unique, averages = evaluate(H[None, :, :])
-    assert np.allclose(b_unique[-1], [3, 3, 3, -3, -3, -3]), b_unique[-1]
-    print(averages[-1], mini33(H[None, :, :], 3))
-exit()
+    gridpoints, values = evaluate(H[None, :, :], grid_object, do_averaging=do_averaging)
 
-
-
-'''
-print(H)
-cols = H.sum(axis=0)
-print(cols)
-print(np.linalg.norm(cols) ** 2 / 36)
-H[[3, 4, 5], :] = 1 / H[[3, 4, 5], :]
-print("====")
-print(H)
-cols = H.sum(axis=0)
-print(cols)
-print(np.linalg.norm(cols) ** 2 / 36)
-exit()
-'''
-
-batchsize = 1
-Hs = np.array([H] * batchsize)
-
-import time
-start = time.perf_counter()
-b_unique, averages = evaluate(Hs)
-print(time.perf_counter() - start, f"seconds for {batchsize} {n}x{n} matrices, gridsize {2 * N - 1}^{n}, {len(b_unique)} unique gridpoints")
+    print(f"{target_value} ratio", (np.isclose(values, target_value)).astype(int).sum(), "out of", len(values))
+    for gridpoint, value in zip(gridpoints, values):
+        if np.isclose(value, target_value, atol=1e-6): print(gridpoint, value)
+    print("=====")
