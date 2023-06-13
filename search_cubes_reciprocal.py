@@ -15,6 +15,8 @@ n, run_id = map(int, sys.argv[1:])
 
 
 tf.random.set_seed(run_id)
+np.random.seed(run_id)
+
 
 identity = tf.eye(n, dtype=tf.complex128)
 
@@ -27,10 +29,10 @@ mat = mat / tf.complex(tf.abs(mat), tf.zeros((n, n, n), dtype=tf.float64)) / n *
 var = tf.Variable(mat, trainable=True)
 
 
-c = np.load("canonized_cubes/canonized_cube_00000.npy")
-c = np.random.permutation(c.flatten()).reshape((6, 6, 6))
+# c = np.load("canonized_cubes/canonized_cube_00000.npy")
+# c = np.random.permutation(c.flatten()).reshape((6, 6, 6))
 # c += np.random.normal(size=c.shape, scale=0.1)
-var = tf.Variable(c, trainable=True)
+# var = tf.Variable(c, trainable=True)
 
 
 
@@ -99,7 +101,7 @@ def reciprocal_transpose(u):
 
 
 def matolcsi_loss(u):
-    how_unitary = closeness(reciprocal_transpose(u) @ u, identity)
+    how_unitary = closeness(reciprocal_transpose(u) @ u, identity * n)
     return how_unitary
 
 
@@ -142,20 +144,19 @@ def loss_fn():
 
     # terms += all_haagerup_losses(var)
     terms += contiguous_haagerup_losses(var)
-    return sum(terms)
+    return sum(terms), terms
 
 opt = tf.keras.optimizers.SGD(learning_rate=0.001)
 
-iteration_count = 205
+iteration_count = 305
 iteration = 0
 while iteration < iteration_count:
     with tf.GradientTape() as tape:
-        loss = loss_fn()
+        loss, terms = loss_fn()
     grads = tape.gradient(loss, [var])
     opt.apply_gradients(zip(grads, [var]))
-
     loss = loss.numpy()
-    if (iteration % 10 == 0) or (iteration>=198) :
+    if (iteration % 10 == 0) or (iteration>=298) :
         print(iteration, loss)
 
         v = var.numpy()
