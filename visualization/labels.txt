@@ -1,0 +1,44 @@
+z	1	1	$f$
+z	1	2	$c$
+z	1	3	$e$
+z	1	4	$b$
+z	1	5	$d$
+z	1	6	$a$
+z	2	1	$-\lambda\overline{c}$
+z	2	2	$\lambda\overline{f}$
+z	2	3	$-\lambda\overline{b}$
+z	2	4	$\lambda\overline{e}$
+z	2	5	$-\lambda\overline{a}$
+z	2	6	$\lambda\overline{d}$
+
+z	3	1	$e$
+z	3	2	$b$
+z	3	3	$d$
+z	3	4	$a$
+z	3	5	$f$
+z	3	6	$c$
+z	4	1	$-\lambda\overline{b}$
+z	4	2	$\lambda\overline{e}$
+z	4	3	$-\lambda\overline{a}$
+z	4	4	$\lambda\overline{d}$
+z	4	5	$-\lambda\overline{c}$
+z	4	6	$\lambda\overline{f}$
+
+z	5	1	$d$
+z	5	2	$a$
+z	5	3	$f$
+z	5	4	$c$
+z	5	5	$e$
+z	5	6	$b$
+z	6	1	$-\lambda\overline{a}$
+z	6	2	$\lambda\overline{d}$
+z	6	3	$-\lambda\overline{c}$
+z	6	4	$\lambda\overline{f}$
+z	6	5	$-\lambda\overline{b}$
+z	6	6	$\lambda\overline{e}$
+
+x	1	6	to
+x	2	6	do
+y	6	6	to
+y	5	6	do
+
