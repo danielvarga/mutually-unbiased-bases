@@ -163,9 +163,6 @@ target_value = 1/6
 grid_object = build_grid_object(n=n, N=N, slice_sum=slice_sum)
 (b, b_unique, unique_inverse) = grid_object # but we don't use them below, only in evaluate().
 
-cubes = np.load("all_straight_cubes.npy")
-cube = cubes[5]
-cube *= 6 ** 0.5
 
 
 Hs = random_fouriers(100, phase=True, perm=True) / 6 ** 0.5
@@ -185,7 +182,15 @@ H = dl @ H @ dr
 H = H * 6 ** 0.5
 
 
-for H in [H]:
+cubes = np.load("all_straight_cubes.npy")
+cube = cubes[5]
+cube *= 6 ** 0.5
+# all_straight_cubes[5] has Szollosi direction axis=2.
+szollosi_slices = [cube[:, :, i] for i in range(6)]
+
+
+value_tensor = []
+for H in szollosi_slices:
 # for H in (cube[0, :, :], cube[0, :, :].T, cube[:, 0, :], cube[:, 0, :].T, cube[:, :, 0], cube[:, :, 0].T):
     gridpoints, values = evaluate(H[None, :, :], grid_object, do_averaging=do_averaging)
 
@@ -193,3 +198,7 @@ for H in [H]:
     for gridpoint, value in zip(gridpoints, values):
         if np.isclose(value, target_value, atol=1e-0): print(gridpoint, value)
     print("=====")
+    value_tensor.append(values)
+
+value_tensor = np.array(value_tensor)
+print(value_tensor.mean(axis=(0,2)))
