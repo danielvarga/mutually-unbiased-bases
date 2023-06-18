@@ -29,20 +29,58 @@ def deg_fourier(a, b):
     return canonical_fourier(x, y)
 
 
-def random_fouriers(n):
+def random_phases(n):
+    return np.exp(2 * np.pi * 1j * np.random.uniform(size=n))
+
+
+def random_permutation(n):
+    indices = np.random.permutation(n)
+    permutation_matrix = np.eye(n)[indices]
+    return permutation_matrix
+
+
+def random_fouriers(N, phase, perm):
     fouriers = []
-    for i in range(n):
+    for i in range(N):
         x, y = np.random.uniform(0, 180), np.random.uniform(0, 180)
-        fouriers.append(deg_fourier(x, y))
+        f = deg_fourier(x, y)
+        if phase:
+            dl = np.diag(random_phases(6))
+            dr = np.diag(random_phases(6))
+            f = dl @ f @ dr
+        if perm:
+            pl = random_permutation(6)
+            pr = random_permutation(6)
+            f = pl @ f @ pr
+        fouriers.append(f)
     return np.array(fouriers)
 
 
-def get_szollosis(n):
+def get_szollosis(N):
     import os
     directory = '../szollosis.all/'
-    szollosi_collection = [np.load(directory + filename) for filename in os.listdir(directory)[:n]]
+    szollosi_collection = [np.load(directory + filename) for filename in os.listdir(directory)[:N]]
     return np.array(szollosi_collection)
 
+def get_generics_naked(N):
+    return np.load('../data/generic_hadamards.10173.npy')[:N]
+
+
+def get_generics(N, phase, perm):
+    naked = get_generics_naked(N)
+    generics = []
+    for i in range(N):
+        g = naked[i]
+        if phase:
+            dl = np.diag(random_phases(6))
+            dr = np.diag(random_phases(6))
+            g = dl @ g @ dr
+        if perm:
+            pl = random_permutation(6)
+            pr = random_permutation(6)
+            g = pl @ g @ pr
+        generics.append(g)
+    return np.array(generics)
 
 
 def build_grid_object(n, N, slice_sum):
@@ -126,23 +164,32 @@ grid_object = build_grid_object(n=n, N=N, slice_sum=slice_sum)
 (b, b_unique, unique_inverse) = grid_object # but we don't use them below, only in evaluate().
 
 cubes = np.load("all_straight_cubes.npy")
-cube = cubes[2]
+cube = cubes[5]
 cube *= 6 ** 0.5
 
-'''
-Hs = get_szollosis(100)
-Hs = random_fouriers(100) / 6 ** 0.5
-H = Hs[0]
-H = H[[3, 2, 5, 1, 0, 4], :]
-H = H[:, [3, 1, 4, 2, 0, 5]]
-H = H * 6 ** 0.5
-'''
 
-# for H in [H]:
-for H in (cube[0, :, :], cube[0, :, :].T, cube[:, 0, :], cube[:, 0, :].T, cube[:, :, 0], cube[:, :, 0].T):
+Hs = random_fouriers(100, phase=True, perm=True) / 6 ** 0.5
+Hs = get_generics(100, phase=True, perm=True)
+Hs = get_szollosis(100)
+H = Hs[1]
+
+dl = np.diag(random_phases(6))
+dr = np.diag(random_phases(6))
+H = dl @ H @ dr
+
+
+# H = H[[3, 2, 5, 1, 0, 4], :]
+# H = H[:, [3, 1, 4, 2, 0, 5]]
+# H[:, 3] *= np.exp(10j)
+
+H = H * 6 ** 0.5
+
+
+for H in [H]:
+# for H in (cube[0, :, :], cube[0, :, :].T, cube[:, 0, :], cube[:, 0, :].T, cube[:, :, 0], cube[:, :, 0].T):
     gridpoints, values = evaluate(H[None, :, :], grid_object, do_averaging=do_averaging)
 
     print(f"{target_value} ratio", (np.isclose(values, target_value)).astype(int).sum(), "out of", len(values))
     for gridpoint, value in zip(gridpoints, values):
-        if np.isclose(value, target_value, atol=1e-6): print(gridpoint, value)
+        if np.isclose(value, target_value, atol=1e-0): print(gridpoint, value)
     print("=====")
