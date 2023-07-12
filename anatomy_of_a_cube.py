@@ -111,9 +111,15 @@ sx0 = szollosi_modified_sym(firstrow, phi)
 header("modified Szollosi")
 pretty(sx0)
 
+header("conjugate pair of modified Szollosi")
+sx1 = conjugate_pair_sym(sx0)
+pretty(sx1)
+
 sx0i = interlace(sx0)
 header("modified Szollosi interlaced")
 pretty(sx0i)
+
+
 
 header("interlacing the conjugate pair of the modified Szollosi")
 sx1i = interlace(conjugate_pair_sym(sx0))
