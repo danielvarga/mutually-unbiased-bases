@@ -115,3 +115,81 @@ def dump_cube_labels_for_tikz():
 
 
 dump_cube_labels_for_tikz() ; exit()
+
+
+def enforce_norm_one(p, variables):
+    for var in variables:
+        p = p.subs(conjugate(var) * var, 1)
+    return p
+
+
+def reduce_eqs(eqs):
+    reduced_eqs = []
+    for eq in eqs:
+        redundant = False
+        for req in reduced_eqs:
+            if eq == req or eq == conjugate(req):
+                redundant = True
+                break
+        if not redundant:
+            reduced_eqs.append(eq)
+    return reduced_eqs
+
+
+def verify_1d():
+    c, first_rows, gammas = build_cube()
+
+    '''
+    gammas_from_rows = [1 / (1 - 2 * conjugate(a + b + c)) for a, b, c, _, _, _ in first_rows]
+    def subs_gammas_from_rows(element):
+        for i in range(3):
+            element = element.subs(gammas[i], gammas_from_rows[i])
+        return element
+    c = np.vectorize(subs_gammas_from_rows)(c)
+    '''
+
+    eqs = []
+    for i in range(6):
+        for j in range(6):
+            # TODO is it really 1?
+            eqs.append(c[i, j, :].sum() - 1)
+            eqs.append(c[:, i, j].sum() - 1)
+            eqs.append(c[j, :, i].sum() - 1)
+    reduced_eqs = reduce_eqs(eqs)
+    print(len(reduced_eqs), "equations coming from piercing")
+    for eq in reduced_eqs:
+        print(eq)
+
+
+def verify_2d():
+    c, first_rows, gammas = build_cube()
+    variables = first_rows.flatten().tolist() + gammas.tolist()
+
+    eqs = []
+    for axis in range(3):
+        for i in range(6):
+            h = slic(c, axis, i)
+            for transpose in (False, True):
+                if transpose:
+                    h = h.T
+                for j in range(6):
+                    for k in range(j + 1, 6):
+                        prod = sum(conjugate(h[ii, j]) * h[ii, k] for ii in range(6))
+                        eq = enforce_norm_one(prod, variables)
+                        eqs.append(eq)
+    reduced_eqs = []
+    for eq in eqs:
+        redundant = False
+        for req in reduced_eqs:
+            if eq == req or eq == conjugate(req) or gammas[0] * eq == req or gammas[0] * req == eq:
+                redundant = True
+                break
+        if not redundant:
+            reduced_eqs.append(eq)
+    print(len(reduced_eqs), "equations coming from unitarity")
+    for eq in reduced_eqs:
+        print(eq)
+
+verify_1d()
+print("====")
+verify_2d()
