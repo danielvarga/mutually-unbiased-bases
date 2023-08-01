@@ -87,6 +87,7 @@ for l in sys.stdin:
     if l == "\n" or l.startswith("#"):
         continue
     axis, row, col, code = l.strip().split("\t")
+    col = 7 - int(col)
     plane = {"x": "zy", "y": "zx", "z": "xy"}[axis]
     slant = {"x": "yslant=-0.5,xslant=0", "y": "yslant=0.5,xslant=0", "z": "yslant=0,xslant=0"}[axis]
     line = f"{chr(92)}draw[canvas is {plane} plane at {axis}=6, thick] node[anchor=center,{slant}] at ({col}*{chr(92)}rectWidth-0.5,{row}*{chr(92)}rectHeight-0.5) {{{chr(92)}scriptsize {code}}};"
