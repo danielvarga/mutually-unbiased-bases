@@ -38,6 +38,14 @@ class Algebra:
 
         return Algebra(combined_coeffs, unique_monomials)
 
+    def reduced(self):
+        # not the most efficient way to make it into a minimal normal form, but not bad either
+        return self + Algebra.zero(self.shape)
+
+    def __eq__(self, other):
+        diff = self - other
+        return np.all(diff.coeffs == 0)
+
     def times_monomial(self, monom):
         assert self.shape == monom.shape
         return Algebra(self.coeffs, self.monoms + monom[None, ...])
@@ -67,12 +75,36 @@ class Algebra:
     def conjugate(self):
         return Algebra(self.coeffs, -self.monoms)
 
+    @staticmethod
+    def multisum(elements):
+        assert len(elements) > 0, "can't deduce the shape"
+        shape = elements[0].shape
+        for i in range(1, len(elements)):
+            assert elements[i].shape == shape, "all shapes must be compatible"
+
+        all_monomials = np.concatenate([element.monoms for element in elements])
+        unique_monomials, unique_indices = np.unique(all_monomials, axis=0, return_index=True)
+
+        # dtype == dtype of last element's coeff dtype, because we start with integer 0,
+        # but cast to float if we ever encounter a float coeff.
+        # very flaky, sorry.
+        combined_coeffs = np.zeros(len(unique_monomials), dtype=elements[-1].coeffs.dtype)
+        dimension = len(shape)
+        axis = tuple(range(1, dimension + 1))
+        for i in range(len(unique_monomials)):
+            for element in elements:
+                combined_coeffs[i] += np.sum(element.coeffs[np.all(element.monoms == unique_monomials[i], axis=axis)])
+
+        return Algebra(combined_coeffs, unique_monomials)
+
 
 def test_algebra():
-    one = Algebra([1, 2, 3], [[1, 2], [0, 1], [2, 3]])
-    other = Algebra([4, 5, 6], [[1, 2], [0, 1], [3, 4]])
-    print(one + other)
-    print(one * other)
+    a = Algebra([1, 2, 3], [[1, 2], [0, 1], [2, 3]])
+    b = Algebra([4, 5, 6], [[1, 2], [0, 1], [3, 4]])
+    assert a + b - b == a
+    assert a * (a + b) == a * a + a * b
+    assert (a + b) * (a - b) == (a * a - b * b)
+    assert a + b + b.conjugate() == Algebra.multisum([a, b, b.conjugate()])
 
 
 # it's really not tensorial. it's the same thing, it's just that
@@ -166,7 +198,16 @@ def cube_g(gamma):
     return summa
 
 
-gamma = np.array([1, 1, 1, -1, -1, -1])
-g = cube_g(gamma)
+gamma = [1, 1, 1, -1, -1, -1]
+gammas = np.array(list(itertools.permutations(gamma)))
+gammas = np.unique(gammas, axis=0)
+gs = []
+for i, gamma in enumerate(gammas):
+    g = cube_g(gamma)
+    gs.append(g)
+    print(f"{i+1} / {len(gammas)} gamma")
 
-print(np.unique(g.coeffs))
+summa = Algebra.multisum(gs)
+coeffs, counts = np.unique(summa.coeffs, return_counts=True)
+for coeff, cnt in zip(coeffs, counts):
+    print(f"there are {cnt} monomials with coefficient {coeff}")
