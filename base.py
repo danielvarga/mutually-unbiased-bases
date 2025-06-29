@@ -439,8 +439,8 @@ def gently_verify_hadamard(b):
     print(prod - np.eye(n))
 
 
-def verify_sum(v):
-    assert np.isclose(v.sum(), 1, atol=2e-4)
+def verify_sum(v, atol=1e-4):
+    assert np.isclose(v.sum(), 1, atol=atol)
 
 
 def verify_phase_equivalence(b1, b2, atol=1e-4):
@@ -459,32 +459,32 @@ def verify_phase_equivalence_overkill(b1, b2, atol=1e-4):
     return uu, vv
 
 
-def verify_cube_properties(c):
+def verify_cube_properties(c, atol=1e-4):
     n = c.shape[0]
     for i in range(n):
         # print("verifying 2D slices", i)
-        verify_hadamard(c[i, :, :])
-        verify_hadamard(c[:, i, :])
-        verify_hadamard(c[:, :, i])
+        verify_hadamard(c[i, :, :], atol=atol)
+        verify_hadamard(c[:, i, :], atol=atol)
+        verify_hadamard(c[:, :, i], atol=atol)
 
     for i in range(n):
         for j in range(n):
             # print("verifying 1D slices", i, j)
-            verify_sum(c[i, j, :])
-            verify_sum(c[:, i, j])
-            verify_sum(c[j, :, i])
+            verify_sum(c[i, j, :], atol=atol)
+            verify_sum(c[:, i, j], atol=atol)
+            verify_sum(c[j, :, i], atol=atol)
 
     for i in range(n):
         # print("verifying equivalence of parallel slices", i)
         b1 = c[0, :, :]
         b2 = c[i, :, :]
-        verify_phase_equivalence(b1, b2)
+        verify_phase_equivalence(b1, b2, atol=atol)
         b1 = c[:, 0, :]
         b2 = c[:, i, :]
-        verify_phase_equivalence(b1, b2)
+        verify_phase_equivalence(b1, b2, atol=atol)
         b1 = c[:, :, 0]
         b2 = c[:, :, i]
-        verify_phase_equivalence(b1, b2)
+        verify_phase_equivalence(b1, b2, atol=atol)
 
 
 def slic(c, direction, coord):
@@ -557,8 +557,9 @@ def visualize_clusters(c, group_conjugates=True):
     n = 6
     N = 10000
     bins = (N * np.angle(c)).astype(int)
-    if group_conjugates:
-        bins = np.abs(bins)
+    signs = np.sign(bins)
+    assert np.all(signs !=0)
+    bins = np.abs(bins)
     vals, cnts = np.unique(bins.flatten(), return_counts=True)
 
     # for a full cube every color appears 6 times.
@@ -571,6 +572,10 @@ def visualize_clusters(c, group_conjugates=True):
     dists = bins[..., None] - vals[None, :]
     close = np.isclose(dists, 0)
     which = np.argmax(close, axis=-1)
+    which += 1
+    which *= signs
+    if group_conjugates:
+        which = np.abs(which)
     print(len(np.unique(which.flatten())))
     return which
 

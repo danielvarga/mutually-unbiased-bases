@@ -8,6 +8,8 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from sklearn.manifold import MDS, TSNE
 
+from base import *
+
 
 def merge_canonized_cubes(folder_path, output_file):
     cube_list = []
@@ -31,8 +33,71 @@ def merge_canonized_cubes(folder_path, output_file):
 # merge_canonized_cubes(folder_path='canonized_cubes', output_file='merged_canonized_cubes.npy') ; exit()
 # merge_canonized_cubes(folder_path='straight_cubes', output_file='merged_straight_cubes.npy') ; exit()
 
-# cubes = np.load("merged_canonized_cubes.npy") ; print(cubes.shape, "canonized cubes read")
-cubes = np.load("merged_straight_cubes.npy") ; print(cubes.shape, "straight cubes read")
+cubes = np.load("merged_canonized_cubes.npy") ; print(cubes.shape, "canonized cubes read")
+# cubes = np.load("merged_straight_cubes.npy") ; print(cubes.shape, "straight cubes read")
+
+
+
+cf = cubes.reshape((len(cubes), -1))
+cf_real = np.concatenate([cf.real, cf.imag], axis=-1).reshape((len(cubes), -1))
+
+cf_real_halfcube = cf_real[:, :(cf_real.shape[-1] // 2)]
+
+cube_embedding = PCA(n_components=3).fit_transform(cf_real)
+# -> turns out that this cleanly separates into 8 clusters.
+cube_labels = KMeans(n_clusters=8, random_state=42).fit_predict(cube_embedding)
+
+hypocycloid_embedding = PCA(n_components=2).fit_transform(cf_real_halfcube)
+# -> turns out that this quite cleanly cuts the hypocycloid into 6 segments.
+hypocycloid_labels = KMeans(n_clusters=6, random_state=42).fit_predict(hypocycloid_embedding)
+
+plt.scatter(hypocycloid_embedding[:, 0], hypocycloid_embedding[:, 1], s=2, c=hypocycloid_labels, cmap='tab10')
+plt.gca().set_aspect('equal')
+plt.title("2D PCA with k-means\nbased on top half (top 3 Szollosi matrices) of cube")
+plt.show()
+
+fig = plt.figure()
+ax = fig.add_subplot(projection='3d')
+ax.scatter(cube_embedding[:, 0], cube_embedding[:, 1], cube_embedding[:, 2], c=cube_labels, cmap='tab10')
+plt.title('3D PCA with k-means\nIt is supposed to cluster into 8 categories perfectly.')
+plt.show()
+
+
+szollosis = cubes[:, 0, :, :] # top Szollosi face of each cube
+# merged_canonized_cubes.npy contains the deinterlaced variant a,b,c,d,e,f
+# instead of Figure 1's interlaced a,f,b,e,c,d ordering.
+A, B, C, D, E, F = szollosis[:, 0, :].T # each a 1d array indexed by the cubes.
+
+# Legyen adva a Szöllősi mátrix olyan formában, ahogy a kanonizált alakú kockában van, azaz ahogy jelenleg a cikkünk 14. oldalán lévő ábra legfelső lapja mutatja.
+# Legyen ezután x=a/b, y=b/c, és \alpha= x+y+(1/xy). Elvileg az \alpha paraméter lesz benne a "hatszög alakú" hipocikloid tartományban. 
+x = A / B
+y = B / C
+alpha = x + y + 1 / x / y
+
+plt.scatter(alpha.real, alpha.imag, s=2)
+plt.gca().set_aspect('equal')
+plt.title("Szollosi's hypocycloid of alpha parameters")
+plt.show()
+
+plt.scatter(alpha.real, alpha.imag, s=6, c=cube_labels, cmap='tab10')
+plt.gca().set_aspect('equal')
+plt.title("Szollosi's hypocycloid of alpha parameters,\nlabeled by the PCA-based clustering of the cubes.\nNo pattern.")
+plt.show()
+
+plt.scatter(alpha.real, alpha.imag, s=6, c=hypocycloid_labels, cmap='tab10')
+plt.gca().set_aspect('equal')
+plt.title("Szollosi's hypocycloid of alpha parameters,\nlabeled by the PCA-based clustering of the half-cubes.\nClear pattern.")
+plt.show()
+
+plt.scatter(angler(A), angler(B), s=6, c=cube_labels, cmap='tab10')
+plt.gca().set_aspect('equal')
+plt.title("a and b, the Sz_11 and Sz_12 elements of the deinterlaced Szollosi matrix,\nlabeled by the PCA-based clustering of the cubes.\nThere is a pattern.")
+plt.show()
+
+
+
+exit()
+
 
 N = 200
 cubes = cubes[:N]
