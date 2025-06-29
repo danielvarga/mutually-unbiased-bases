@@ -37,29 +37,28 @@ cubes = np.load("merged_canonized_cubes.npy") ; print(cubes.shape, "canonized cu
 # cubes = np.load("merged_straight_cubes.npy") ; print(cubes.shape, "straight cubes read")
 
 
-
 cf = cubes.reshape((len(cubes), -1))
-cf_real = np.concatenate([cf.real, cf.imag], axis=-1).reshape((len(cubes), -1))
+cf_real_part = cf.real
+cf_imag_part = cf.imag
 
-cf_real_halfcube = cf_real[:, :(cf_real.shape[-1] // 2)]
-
-cube_embedding = PCA(n_components=3).fit_transform(cf_real)
+cube_embedding = PCA(n_components=3).fit_transform(cf_imag_part)
 # -> turns out that this cleanly separates into 8 clusters.
 cube_labels = KMeans(n_clusters=8, random_state=42).fit_predict(cube_embedding)
 
-hypocycloid_embedding = PCA(n_components=2).fit_transform(cf_real_halfcube)
+hypocycloid_embedding = PCA(n_components=2).fit_transform(cf_real_part)
 # -> turns out that this quite cleanly cuts the hypocycloid into 6 segments.
 hypocycloid_labels = KMeans(n_clusters=6, random_state=42).fit_predict(hypocycloid_embedding)
 
 plt.scatter(hypocycloid_embedding[:, 0], hypocycloid_embedding[:, 1], s=2, c=hypocycloid_labels, cmap='tab10')
 plt.gca().set_aspect('equal')
-plt.title("2D PCA with k-means\nbased on top half (top 3 Szollosi matrices) of cube")
+plt.title("2D PCA and k-means of real part of cube")
 plt.show()
+
 
 fig = plt.figure()
 ax = fig.add_subplot(projection='3d')
 ax.scatter(cube_embedding[:, 0], cube_embedding[:, 1], cube_embedding[:, 2], c=cube_labels, cmap='tab10')
-plt.title('3D PCA with k-means\nIt is supposed to cluster into 8 categories perfectly.')
+plt.title('3D PCA and k-means of imaginary part of cube\nIt is supposed to cluster into 8 categories perfectly.')
 plt.show()
 
 
@@ -81,17 +80,17 @@ plt.show()
 
 plt.scatter(alpha.real, alpha.imag, s=6, c=cube_labels, cmap='tab10')
 plt.gca().set_aspect('equal')
-plt.title("Szollosi's hypocycloid of alpha parameters,\nlabeled by the PCA-based clustering of the cubes.\nNo pattern.")
+plt.title("Szollosi's hypocycloid of alpha parameters,\nlabeled by (imaginary part based) 8-clustering of the cubes.\nNo pattern.")
 plt.show()
 
 plt.scatter(alpha.real, alpha.imag, s=6, c=hypocycloid_labels, cmap='tab10')
 plt.gca().set_aspect('equal')
-plt.title("Szollosi's hypocycloid of alpha parameters,\nlabeled by the PCA-based clustering of the half-cubes.\nClear pattern.")
+plt.title("Szollosi's hypocycloid of alpha parameters,\nlabeled by the (real part based) 6-clustering PCA-based clustering of the cubes.\nClear pattern.")
 plt.show()
 
 plt.scatter(angler(A), angler(B), s=6, c=cube_labels, cmap='tab10')
 plt.gca().set_aspect('equal')
-plt.title("a and b, the Sz_11 and Sz_12 elements of the deinterlaced Szollosi matrix,\nlabeled by the PCA-based clustering of the cubes.\nThere is a pattern.")
+plt.title("a and b, the Sz_11 and Sz_12 elements of the deinterlaced Szollosi matrix,\nlabeled by the 8-clustering of the cubes.\nThere is a pattern.")
 plt.show()
 
 
