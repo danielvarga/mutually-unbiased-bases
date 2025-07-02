@@ -95,7 +95,7 @@ def regression(X, Y, title):
     W_label = W_round * np.sign(W)
     W_label = W_label.reshape((6, 6, 6))
 
-    print(W_label)
+    # print(W_label)
 
     print("max", np.abs(W - W_hat).max())
 
@@ -129,8 +129,8 @@ def regression(X, Y, title):
     ax.set_zlabel("Fourier 2 slices")
     ax.view_init(elev=10, azim=185)
     plt.tight_layout()
-    plt.show()
-    return W, W_label
+    # plt.show()
+    return W.reshape((6, 6, 6)) , W_label
 
 
 W_real, W_label_real = regression(X=cf_real_part, Y=alpha.real, title="Weights for calculating Re(alpha) from the real part of the canonized cube.\nApply sqrt(w) * sign(w) / 24.")
@@ -140,14 +140,37 @@ W_imag, W_label_imag = regression(X=cf_real_part, Y=alpha.imag, title="Weights f
 W = W_real + 1j * W_imag
 
 
-
-plusminus = np.ones(6, dtype=int)
-plusminus[3:] *= -1
-four_one = np.array([4, 4, -1, -1, -1, -1])
-three_zero = np.array([0, 0, 3, 3, -3, -3])
-
 def outer_prod(v1, v2, v3):
     return v1[:, None, None] * v2[None, :, None] * v3[None, None, :]
+
+s3i = np.sqrt(3) * 1j
+first_component = np.array([2, 2, -s3i-1, -s3i-1, s3i-1, s3i-1]) / 24
+plusminus = np.ones(6, dtype=int)
+plusminus[3:] *= -1
+W_repro = outer_prod(first_component, plusminus, plusminus)
+
+assert np.allclose(W_repro, W)
+exit()
+
+
+first_component_true = (W * plusminus[None, None, :] * plusminus[None, :, None])[:, 0, 0]
+print(f"{24*first_component=}")
+print(f"{24*first_component_true=}")
+
+exit()
+
+W_repro = outer_prod(first_component, plusminus, plusminus)
+
+# print(np.around(W, 6))
+# print(W_repro)
+print("----")
+print(np.around(W_repro - W, 6))
+exit()
+
+
+
+four_one = np.array([4, 4, -1, -1, -1, -1])
+three_zero = np.array([0, 0, 3, 3, -3, -3])
 
 W_label_real_repro = outer_prod(four_one, plusminus, plusminus)
 W_label_imag_repro = outer_prod(-three_zero, plusminus, plusminus)
