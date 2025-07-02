@@ -104,6 +104,7 @@ def regression(X, Y, title):
     rmse = np.mean((pred - Y) ** 2) ** 0.5
     print(f"ridge RMSE after rounding:", rmse)
 
+    return W_label
 
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
@@ -131,11 +132,43 @@ def regression(X, Y, title):
     ax.view_init(elev=10, azim=185)
     plt.tight_layout()
     plt.show()
+    return W_label
 
 
-regression(X=cf_real_part, Y=alpha.real, title="Weights for calculating Re(alpha) from the real part of the canonized cube")
+W_label_real = regression(X=cf_real_part, Y=alpha.real, title="Weights for calculating Re(alpha) from the real part of the canonized cube.\nApply sqrt(w) * sign(w) / 24.")
 
-regression(X=cf_real_part, Y=alpha.imag, title="Weights for calculating Im(alpha) from the real part of the canonized cube")
+W_label_imag = regression(X=cf_real_part, Y=alpha.imag, title="Weights for calculating Im(alpha) from the real part of the canonized cube.\nApply sqrt(w) * sign(w) / 24.")
+
+one_slice = np.ones((6, 6), dtype=int)
+one_slice[3:, :] *= -1
+one_slice[:, :3] *= -1
+
+W_label_real_repro = np.zeros((6, 6, 6), dtype=int)
+W_label_real_repro[:2, :, :] = one_slice[None, :, :] * -4
+W_label_real_repro[2:, :, :] = one_slice[None, :, :]
+
+assert np.allclose(W_label_real_repro, W_label_real)
+
+W_label_imag_repro = np.zeros((6, 6, 6), dtype=int)
+W_label_imag_repro[0:2, :, :] = one_slice[None, :, :] * 0
+W_label_imag_repro[2:4, :, :] = one_slice[None, :, :] * 3
+W_label_imag_repro[4:6, :, :] = one_slice[None, :, :] * -3
+
+assert np.allclose(W_label_imag_repro, W_label_imag)
+
+plusminus = np.ones(6, dtype=int)
+plusminus[3:] *= -1
+four_one = np.array([4, 4, -1, -1, -1, -1])
+three_zero = np.array([0, 0, 3, 3, -3, -3])
+
+def outer_prod(v1, v2, v3):
+    return v1[:, None, None] * v2[None, :, None] * v3[None, None, :]
+
+W_label_real_repro2 = outer_prod(four_one, plusminus, plusminus)
+
+W_label_imag_repro2 = outer_prod(-three_zero, plusminus, plusminus)
+print(W_label_imag_repro - W_label_imag_repro2)
+exit()
 
 
 plt.scatter(hypocycloid_embedding[:, 0], hypocycloid_embedding[:, 1], s=2) #, c=hypocycloid_labels, cmap='tab10')
