@@ -129,15 +129,13 @@ def regression(X, Y, title):
     ax.set_zlabel("Fourier 2 slices")
     ax.view_init(elev=10, azim=185)
     plt.tight_layout()
-    # plt.show()
+    plt.show()
     return W.reshape((6, 6, 6)) , W_label
 
 
 W_real, W_label_real = regression(X=cf_real_part, Y=alpha.real, title="Weights for calculating Re(alpha) from the real part of the canonized cube.\nApply sqrt(w) * sign(w) / 24.")
-
 W_imag, W_label_imag = regression(X=cf_real_part, Y=alpha.imag, title="Weights for calculating Im(alpha) from the real part of the canonized cube.\nApply sqrt(w) * sign(w) / 24.")
-
-W = W_real + 1j * W_imag
+W_empirical = W_real + 1j * W_imag
 
 
 def outer_prod(v1, v2, v3):
@@ -147,35 +145,14 @@ s3i = np.sqrt(3) * 1j
 first_component = np.array([2, 2, -s3i-1, -s3i-1, s3i-1, s3i-1]) / 24
 plusminus = np.ones(6, dtype=int)
 plusminus[3:] *= -1
-W_repro = outer_prod(first_component, plusminus, plusminus)
+W = outer_prod(first_component, plusminus, plusminus)
 
-assert np.allclose(W_repro, W)
-exit()
+assert np.allclose(W_empirical, W)
 
-
-first_component_true = (W * plusminus[None, None, :] * plusminus[None, :, None])[:, 0, 0]
-print(f"{24*first_component=}")
-print(f"{24*first_component_true=}")
-
-exit()
-
-W_repro = outer_prod(first_component, plusminus, plusminus)
-
-# print(np.around(W, 6))
-# print(W_repro)
-print("----")
-print(np.around(W_repro - W, 6))
-exit()
-
-
-
-four_one = np.array([4, 4, -1, -1, -1, -1])
-three_zero = np.array([0, 0, 3, 3, -3, -3])
-
-W_label_real_repro = outer_prod(four_one, plusminus, plusminus)
-W_label_imag_repro = outer_prod(-three_zero, plusminus, plusminus)
-assert np.allclose(W_label_real_repro, W_label_real)
-assert np.allclose(W_label_imag_repro, W_label_imag)
+prod = cf @ W.flatten()
+assert np.allclose(prod - alpha, 0, atol=1e-4)
+# it does not matter if we use the imaginary part or not, it's mapped to 0:
+assert np.allclose(cf_imag_part @ W.flatten(), 0)
 
 
 
